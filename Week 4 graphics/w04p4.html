@@ -1,0 +1,41 @@
+<!doctype html>
+
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>w04p4</title>
+    <script type="text/javascript" src="MV.js"></script>
+    <script type="text/javascript" src="w04p4.js"></script>
+    <script type="text/javascript" src="subdiv_p2.js"></script>
+    <script id="wgsl" type="x-shader" src="w04p4.wgsl"></script>
+</head>
+
+<body>
+    <canvas width="512" height="512"></canvas>
+
+    <div>
+        <label for="L_e">Emitted radiance (L_e) 0.0</label>
+        <input type="range" , id="L_e" , min="0.0" , max="2.0" , step="0.05">2.0</input>
+        <br>
+        <label for="L_a">Ambient radiance (L_a) 0.0</label>
+        <input type="range" , id="L_a" , min="0.0" , max="1.0" , step="0.05">1.0</input>
+        <br>
+        <label for="k_d">Diffuse coefficient (k_d) 0.0</label>
+        <input type="range" , id="k_d" , min="0.0" , max="1.0" , step="0.05">1.0</input>
+        <br>
+        <label for="k_s">Specular coefficient (k_s) 0.0</label>
+        <input type="range" , id="k_s" , min="0.0" , max="1.0" , step="0.05">1.0</input>
+        <br>
+        <label for="s">Shininess (s) 0.0</label>
+        <input type="range" , id="s" , min="0.0" , max="1000" , step="10">1e3</input>
+    </div>
+    <br>
+    <div>
+        <button id="subdivide">Subdivide</button>
+        <button id="coarsen">Coarsen</button>
+        <button id="orbit">Orbit</button>
+    </div>
+</body>
+
+</html>
