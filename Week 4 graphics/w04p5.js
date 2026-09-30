@@ -75,7 +75,9 @@ async function main() {
         vec3(0.0, 1.0, 1.0),
         vec3(1.0, 1.0, 1.0),
     ];
-
+    console.log(positions)
+    console.log(indices)
+    console.log(colors)
     function calc_indices() {
         positions = [
             vec3(0.0, 0.0, 1.0),
