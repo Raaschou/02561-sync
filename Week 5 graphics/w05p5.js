@@ -61,7 +61,7 @@ async function main() {
 
 
     // Scene setup
-    const obj_filename = "guru_tutorial.obj";
+    const obj_filename = "guru_tutorial_v2.obj";
     const obj = await readOBJFile(obj_filename, 1.0, true);
 
 
@@ -71,7 +71,7 @@ async function main() {
 
     let orbiting = false;
     let orbitAngle = 0.0;
-    let radius = 1.0
+    let radius = 1.5
     const M_SQRT2 = Math.sqrt(2.0);
     const M_SQRT6 = Math.sqrt(6.0);
 
@@ -232,7 +232,7 @@ async function main() {
             // radius = 5.0 
             eye = vec3(radius * Math.sin(orbitAngle), 0.5, radius * Math.cos(orbitAngle))
         } else {
-            eye = vec3(0.5, 0.5, 1.0)
+            eye = vec3(0.5, 0.5, radius)
         }
         const view = lookAt(eye, lookat, up);
         const mvp = mult(P, view);
