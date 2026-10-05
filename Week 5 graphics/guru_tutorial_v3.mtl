@@ -1,0 +1,68 @@
+# Blender 5.2.2 LTS MTL File: 'guru_tutorial.blend'
+# www.blender.org
+
+newmtl Poliigon_CeramicPotteryGlazed_10828_2K
+Ns 440.413177
+Ka 1.000000 1.000000 1.000000
+Kd 0.206418 0.447680 0.231026
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Bump -bm 1.000000 C:/Users/Marcus/Poliigon/Library/Poliigon_CeramicPotteryGlazed_10828/2K/Poliigon_CeramicPotteryGlazed_10828_Normal.png
+
+newmtl Poliigon_CeramicPotteryGlazed_10861_2K
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Ns C:/Users/Marcus/Poliigon/Library/Poliigon_CeramicPotteryGlazed_10861/2K/Poliigon_CeramicPotteryGlazed_10861_Roughness.jpg
+map_refl C:/Users/Marcus/Poliigon/Library/Poliigon_CeramicPotteryGlazed_10861/2K/Poliigon_CeramicPotteryGlazed_10861_Metallic.jpg
+map_Bump -bm 1.000000 C:/Users/Marcus/Poliigon/Library/Poliigon_CeramicPotteryGlazed_10861/2K/Poliigon_CeramicPotteryGlazed_10861_Normal.png
+
+newmtl Poliigon_FoodCoffee_10827_2K
+Ka 1.000000 1.000000 1.000000
+Kd 0.042450 0.016552 0.001969
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Ns C:/Users/Marcus/Poliigon/Library/Poliigon_FoodCoffee_10827/2K/Poliigon_FoodCoffee_10827_Roughness.jpg
+map_Bump -bm 1.000000 C:/Users/Marcus/Poliigon/Library/Poliigon_FoodCoffee_10827/2K/Poliigon_FoodCoffee_10827_Normal.png
+
+newmtl Poliigon_FoodGlazeStrawberry_10739_2K
+Ka 1.000000 1.000000 1.000000
+Kd 0.606361 0.306246 0.457627
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Ns C:/Users/Marcus/Poliigon/Library/Poliigon_FoodGlazeStrawberry_10739/2K/Poliigon_FoodGlazeStrawberry_10739_Roughness.jpg
+map_Bump -bm 1.000000 C:/Users/Marcus/Poliigon/Library/Poliigon_FoodGlazeStrawberry_10739/2K/Poliigon_FoodGlazeStrawberry_10739_Normal.png
+
+newmtl Poliigon_FoodPastryDonut_10737_2K
+Ka 1.000000 1.000000 1.000000
+Kd 0.800032 0.524673 0.122241
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Ns C:/Users/Marcus/Poliigon/Library/Poliigon_FoodPastryDonut_10737/2K/Poliigon_FoodPastryDonut_10737_Roughness.jpg
+map_refl C:/Users/Marcus/Poliigon/Library/Poliigon_FoodPastryDonut_10737/2K/Poliigon_FoodPastryDonut_10737_Metallic.jpg
+
+newmtl Sprinkle
+Ns 496.384247
+Ka 1.000000 1.000000 1.000000
+Kd 0.281326 0.867080 0.793770
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
