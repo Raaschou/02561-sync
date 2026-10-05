@@ -1,6 +1,6 @@
 window.onload = function () { main(); }
 
-
+// Function for converting obj float array to array of float array
 function unpackVec3(data) {
     const result = [];
 
@@ -47,6 +47,8 @@ async function main() {
     let diffusionSlider = document.getElementById("k_d")
     let specularSlider = document.getElementById("k_s")
     let shinySlider = document.getElementById("s")
+
+    // Get the float values from the sliders current position/value
     let L_e = parseFloat(emissionSlider.value)
     let L_a = parseFloat(ambianceSlider.value)
     let k_d = parseFloat(diffusionSlider.value)
@@ -63,7 +65,6 @@ async function main() {
     // Scene setup
     const obj_filename = "guru_tutorial_v2.obj";
     const obj = await readOBJFile(obj_filename, 1.0, true);
-
 
 
     let subdivs = 3
