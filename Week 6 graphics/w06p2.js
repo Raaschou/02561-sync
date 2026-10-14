@@ -15,6 +15,18 @@ function checkerBoard(texSize, myTexels) {
     return myTexels;
 }
 
+function onSamplerChange() {
+    addressU = uSelect.value;
+    addressV = vSelect.value;
+    minFilter = minSelect.value;
+    magFilter = magSelect.value;
+    mipmapFilter = mipmapSelect.value;
+
+    updateSampler();
+    render();
+}
+
+
 async function main() {
 
     // Get the context and devices
@@ -30,8 +42,28 @@ async function main() {
 
     context.configure({ device: device, format: canvasFormat });
 
+
+    // Get selects and their values 
+    const uSelect = document.getElementById("U");
+    const vSelect = document.getElementById("V");
+    const minSelect = document.getElementById("minification");
+    const magSelect = document.getElementById("magnification");
+    const mipmapSelect = document.getElementById("mipmap");
+
+    let addressU = uSelect.value
+    let addressV = vSelect.value
+    let minFilter = minSelect.value
+    let magFilter = magSelect.value
+    let mipmapFilter = mipmapSelect.value
+
+
+
+
+
     // Variables
     const texSize = 64;
+    let sampler;
+    let bindGroup;
 
     let rectangle = [
         vec3(-4, -1, -1),
@@ -123,16 +155,8 @@ async function main() {
         [texSize, texSize, 1]
     );
 
-    // Using WebGPU's and lecture code
-    // unsure if it works
-    myTexture.sampler = device.createSampler({
-        label: "Texture sampler",
-        addressModeU: "repeat",
-        addressModeV: "repeat",
-        minFilter: "nearest",
-        magFilter: "linear",
-        mipmapFilter: "nearest"
-    });
+
+
 
     // Import wgsl file
     const wgslfile = document.getElementById("wgsl").src;
@@ -177,17 +201,68 @@ async function main() {
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
 
-    const bindGroup = device.createBindGroup({
-        label: "bind group",
-        layout: pipeline.getBindGroupLayout(0),
-        entries: [
-            { binding: 0, resource: myTexture.sampler },
-            { binding: 1, resource: myTexture.createView() },
-            { binding: 2, resource: { buffer: uniformBuffer } },
-        ],
-    });
+
 
     device.queue.writeBuffer(uniformBuffer, 0, flatten(mvp))
+
+
+    function updateSampler() {
+        if (mipmapFilter === "none") {
+            sampler = device.createSampler({
+                label: "Texture sampler",
+                addressModeU: addressU,
+                addressModeV: addressV,
+                minFilter: minFilter,
+                magFilter: magFilter,
+            });
+        } else {
+            sampler = device.createSampler({
+                label: "Texture sampler",
+                addressModeU: addressU,
+                addressModeV: addressV,
+                minFilter: minFilter,
+                magFilter: magFilter,
+                mipmapFilter: mipmapFilter
+            });
+        }
+        bindGroup = device.createBindGroup({
+            label: "bind group",
+            layout: pipeline.getBindGroupLayout(0),
+            entries: [
+                { binding: 0, resource: sampler },
+                { binding: 1, resource: myTexture.createView() },
+                { binding: 2, resource: { buffer: uniformBuffer } }
+            ]
+        });
+    }
+    updateSampler();
+    // Event listeners are here because they invoke the pipeline
+    uSelect.addEventListener("change", function () {
+        addressU = uSelect.value;
+        updateSampler()
+        render()
+    });
+    vSelect.addEventListener("change", function () {
+        addressV = vSelect.value;
+        updateSampler()
+        render()
+    });
+    minSelect.addEventListener("change", function () {
+        minFilter = minSelect.value;
+        updateSampler()
+        render()
+    });
+    magSelect.addEventListener("change", function () {
+        magFilter = magSelect.value;
+        updateSampler()
+        render()
+    });
+    mipmapSelect.addEventListener("change", function () {
+        mipmapFilter = mipmapSelect.value;
+        updateSampler()
+        render()
+    });
+
 
     render();
 
