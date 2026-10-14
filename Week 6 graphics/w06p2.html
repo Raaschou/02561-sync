@@ -6,12 +6,68 @@
     <meta charset="utf-8">
     <title>w06p2</title>
     <script type="text/javascript" src="/MV.js"></script>
+    <script type="text/javascript" src="/genmipmap.js"></script>
     <script type="text/javascript" src="w06p2.js"></script>
     <script id="wgsl" type="x-shader" src="w06p2.wgsl"></script>
+    <style>
+        div {
+            display: flex;
+            flex-direction: row;
+            margin-right: 50px;
+        }
+
+        p {
+            margin-;
+        }
+    </style>
 </head>
 
 <body>
     <canvas width="512" height="512"></canvas>
+    <div>
+        <p style="font-size: 30px; font-weight: 800; margin-right: 50px;">Wrapping:</p>
+        <div style="flex-direction: column; align-items: center;">
+            <p>U</p>
+
+            <select id="U" size="2">
+                <option value="clamp-to-edge">clamp-to-edge</option>
+                <option value="repeat">repeat</option>
+            </select>
+        </div>
+        <div style="flex-direction: column; align-items: center;">
+            <p>V</p>
+            <select id="V" size="2">
+                <option value="clamp-to-edge">clamp-to-edge</option>
+                <option value="repeat">repeat</option>
+            </select>
+        </div>
+    </div>
+    <br>
+    <div>
+        <p style="font-size: 30px; font-weight: 800;margin-right: 50px;">Filtering: </p>
+        <div style="flex-direction: column; align-items: center;">
+            <p>Minification</p>
+            <select id="minification" size="2">
+                <option value="nearest">nearest</option>
+                <option value="linear">linear</option>
+            </select>
+        </div>
+        <div style="flex-direction: column; align-items: center;">
+            <p>Magnification</p>
+            <select id="magnification" size="2">
+                <option value="nearest">nearest</option>
+                <option value="linear">linear</option>
+            </select>
+        </div>
+        <div style="flex-direction: column; align-items: center;">
+            <p>Mipmapping</p>
+            <select id="mipmap" size="3">
+                <option value="none">none</option>
+                <option value="nearest">nearest</option>
+                <option value="linear">linear</option>
+            </select>
+        </div>
+    </div>
 </body>
 
 </html>
