@@ -44,15 +44,8 @@ async function main() {
         vec2(-1.5, 0.0),
         vec2(2.5, 0.0),
         vec2(2.5, 10.0),
-        vec2(-1.5, 10.0),
-    ]
-
-    let textureBuffer = [
-        vec2(-1.5, 0.0),
-        vec2(2.5, 0.0),
-        vec2(2.5, 10.0),
         vec2(-1.5, 10.0)
-    ];
+    ]
 
     let myTexels = new Uint8Array(4 * texSize * texSize); // 4 for RGBA image, texSize is the resolution
 
@@ -79,6 +72,29 @@ async function main() {
         }]
     }
 
+    // 
+    const textureBuffer = device.createBuffer({
+        label: "texture buffer",
+        size: flatten(texCoords).byteLength,
+        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+    })
+
+    device.queue.writeBuffer(textureBuffer, 0, flatten(texCoords))
+    const textureBufferLayout = {
+        label: "texture buffer layout",
+        arrayStride: sizeof["vec2"],
+        attributes: [{
+            format: "float32x2",
+            offset: 0,
+            shaderLocation: 1,
+        }]
+    }
+
+
+
+
+
+
     const myTexture = device.createTexture({
         label: "checkerboard texture",
         size: [texSize, texSize, 1],
@@ -95,7 +111,7 @@ async function main() {
 
     // Using WebGPU's and lecture code
     // unsure if it works
-    let sampler = device.createSampler({
+    myTexture.sampler = device.createSampler({
         label: "Texture sampler",
         addressModeU: "clamp-to-edge",
         addressModeV: "repeat",
@@ -103,7 +119,6 @@ async function main() {
         magFilter: "linear",
         mipmapFilter: "nearest"
     });
-    myTexture.sampler = sampler;
 
     // Import wgsl file
     const wgslfile = document.getElementById("wgsl").src;
@@ -118,7 +133,7 @@ async function main() {
             label: "vertex shader",
             module: wgsl,
             entryPoint: "main_vs",
-            buffers: [positionsBufferLayout]
+            buffers: [positionsBufferLayout, textureBufferLayout]
         },
         fragment: {
             label: "fragment shader",
@@ -131,7 +146,7 @@ async function main() {
 
 
     // View setup
-    let eye = vec3(0.0, 0.0, 1.0)
+    let eye = vec3(0.0, 0.0, 0.0)
     let lookat = vec3(0.0, 0.0, 0.0)
     let up = vec3(0.0, 1.0, 0.0)
 
@@ -152,8 +167,8 @@ async function main() {
         label: "bind group",
         layout: pipeline.getBindGroupLayout(0),
         entries: [
-            { binding: 0, resource: sampler },
-            { binding: 1, resource: myTexture },
+            { binding: 0, resource: myTexture.sampler },
+            { binding: 1, resource: myTexture.createView() },
             { binding: 2, resource: { buffer: uniformBuffer } },
         ],
     });
@@ -176,6 +191,7 @@ async function main() {
 
         pass.setPipeline(pipeline);
         pass.setVertexBuffer(0, positionsBuffer);
+        pass.setVertexBuffer(1, textureBuffer);
         pass.setBindGroup(0, bindGroup);
         pass.draw(4)
         pass.end()
