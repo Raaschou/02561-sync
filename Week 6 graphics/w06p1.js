@@ -127,7 +127,7 @@ async function main() {
     // unsure if it works
     myTexture.sampler = device.createSampler({
         label: "Texture sampler",
-        addressModeU: "clamp-to-edge",
+        addressModeU: "repeat",
         addressModeV: "repeat",
         minFilter: "nearest",
         magFilter: "linear",
