@@ -64,7 +64,7 @@ async function main() {
     const positionsBuffer = device.createBuffer({
         label: "positions buffer",
         size: flatten(rectangle).byteLength,
-        usage: GPUBufferUsage.COPY_DEST | GPUBufferUsage.VERTEX
+        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
     });
 
     device.queue.writeBuffer(positionsBuffer, 0, flatten(rectangle))
@@ -93,7 +93,8 @@ async function main() {
         [texSize, texSize, 1]
     );
 
-    myTexture.sampler = device.createSampler({
+    let sampler = myTexture.sampler = device.createSampler({
+        label: "Texture sampler",
         addressModeU: "clamp-to-edge",
         addressModeV: "repeat",
         minFilter: "nearest",
@@ -103,28 +104,32 @@ async function main() {
 
 
     // Import wgsl file
-    const wgslfile = document.getElementById("wgsl").scroll;
+    const wgslfile = document.getElementById("wgsl").src;
     const wgslcode = await fetch(wgslfile, { cache: "reload" }).then(r => r.text());
     const wgsl = device.createShaderModule({ code: wgslcode });
 
     // Render pipeline
     const pipeline = device.createRenderPipeline({
+        label: "render pipeline",
         layout: "auto",
         vertex: {
+            label: "vertex shader",
             module: wgsl,
             entryPoint: "main_vs",
             buffers: [positionsBufferLayout]
         },
         fragment: {
+            label: "fragment shader",
             module: wgsl,
             entryPoint: "main_fs",
             targets: [{ format: canvasFormat }],
         },
-        primitive: { topology: "triangle-list" },
+        primitive: { label: "primitive triangle list", topology: "triangle-list" },
     })
 
 
     // View setup
+    let eye = vec3(0.0, 0.0, 5.0)
     let lookat = vec3(0.0, 0.0, 0.0)
     let up = vec3(0.0, 1.0, 0.0)
 
@@ -136,15 +141,17 @@ async function main() {
 
     // Uniform buffer and bind group
     const uniformBuffer = device.createBuffer({
+        label: "uniformBuffer",
         size: sizeof['mat4'],
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
 
     const bindGroup = device.createBindGroup({
+        label: "bind group",
         layout: pipeline.getBindGroupLayout(0),
         entries: [
             { binding: 0, resource: sampler },
-            { binding: 1, resource: texture },
+            { binding: 1, resource: myTexture },
             { binding: 2, resource: { buffer: uniformBuffer } },
         ],
     });
@@ -156,6 +163,7 @@ async function main() {
     function render() {
         const encoder = device.createCommandEncoder();
         const pass = encoder.beginRenderPass({
+            label: "pass encoder",
             colorAttachments: [{
                 view: context.getCurrentTexture().createView(),
                 loadOp: "clear",
@@ -167,7 +175,7 @@ async function main() {
         pass.setPipeline(pipeline);
         pass.setVertexBuffer(0, positionsBuffer);
         pass.setBindGroup(0, bindGroup);
-        pass.draw()
+        pass.draw(texSize)
 
     }
 }
