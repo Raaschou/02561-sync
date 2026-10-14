@@ -145,7 +145,8 @@ async function main() {
         label: "checkerboard texture",
         size: [texSize, texSize, 1],
         format: "rgba8unorm",
-        usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING
+        mipLevelCount: numMipLevels(texSize, texSize),
+        usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT
     });
 
     device.queue.writeTexture(
@@ -155,6 +156,7 @@ async function main() {
         [texSize, texSize, 1]
     );
 
+    generateMipmap(device, myTexture)
 
 
 
@@ -197,7 +199,7 @@ async function main() {
     // Uniform buffer and bind group
     const uniformBuffer = device.createBuffer({
         label: "uniformBuffer",
-        size: sizeof['mat4'],
+        size: 80,
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
 
@@ -205,8 +207,17 @@ async function main() {
 
     device.queue.writeBuffer(uniformBuffer, 0, flatten(mvp))
 
+    function updateUniforms() {
+        const data = new Float32Array(20);
+
+        data.set(flatten(mvp), 0);
+        data[16] = mipmapFilter === "none" ? 0.0 : 1.0;
+
+        device.queue.writeBuffer(uniformBuffer, 0, data);
+    }
 
     function updateSampler() {
+        // Handle no mipmap filter
         if (mipmapFilter === "none") {
             sampler = device.createSampler({
                 label: "Texture sampler",
@@ -260,6 +271,7 @@ async function main() {
     mipmapSelect.addEventListener("change", function () {
         mipmapFilter = mipmapSelect.value;
         updateSampler()
+        updateUniforms()
         render()
     });
 

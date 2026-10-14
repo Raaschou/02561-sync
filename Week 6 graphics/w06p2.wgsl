@@ -5,6 +5,7 @@ struct VSOut {
 
 struct Uniforms {
     mvp: mat4x4f,
+    d: f32,
 }
 
 
@@ -25,5 +26,5 @@ fn main_vs(@location(0) inPos: vec4f, @location(1) inCoord: vec2f) -> VSOut {
 
 @fragment
 fn main_fs(fsInput: VSOut) -> @location(0) vec4f {
-    return textureSample(myTexture, mySampler, fsInput.texCoord);
+    return textureSampleLevel(myTexture, mySampler, fsInput.texCoord, uniforms.d);
 }
