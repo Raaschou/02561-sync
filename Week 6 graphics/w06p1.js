@@ -47,6 +47,11 @@ async function main() {
         vec2(-1.5, 10.0)
     ]
 
+    let indices = new Uint32Array([
+        0, 1, 2,
+        0, 2, 3
+    ]);
+
     let myTexels = new Uint8Array(4 * texSize * texSize); // 4 for RGBA image, texSize is the resolution
 
     // Use checkerboard function to create texture
@@ -54,6 +59,7 @@ async function main() {
 
     // Scene setup
 
+    // Rectangle/postions buffer
     const positionsBuffer = device.createBuffer({
         label: "positions buffer",
         size: flatten(rectangle).byteLength,
@@ -72,7 +78,7 @@ async function main() {
         }]
     }
 
-    // 
+    // Texture coordinates buffer
     const textureBuffer = device.createBuffer({
         label: "texture buffer",
         size: flatten(texCoords).byteLength,
@@ -90,6 +96,14 @@ async function main() {
         }]
     }
 
+    // index buffer
+    const indexBuffer = device.createBuffer({
+        label: "index buffer",
+        size: flatten(indices).byteLength,
+        usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
+    })
+
+    device.queue.writeBuffer(indexBuffer, 0, indices)
 
 
 
@@ -193,7 +207,8 @@ async function main() {
         pass.setVertexBuffer(0, positionsBuffer);
         pass.setVertexBuffer(1, textureBuffer);
         pass.setBindGroup(0, bindGroup);
-        pass.draw(4)
+        pass.setIndexBuffer(indexBuffer, 'uint32');
+        pass.drawIndexed(indices.length);
         pass.end()
         device.queue.submit([encoder.finish()]);
 
