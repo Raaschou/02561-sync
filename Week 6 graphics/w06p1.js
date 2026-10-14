@@ -88,12 +88,14 @@ async function main() {
 
     device.queue.writeTexture(
         { texture: myTexture },
-        myTexels,
+        checkerBoardTexture,
         { offset: 0, bytesPerRow: texSize * 4, rowsPerImage: texSize },
         [texSize, texSize, 1]
     );
 
-    let sampler = myTexture.sampler = device.createSampler({
+    // Using WebGPU's and lecture code
+    // unsure if it works
+    let sampler = device.createSampler({
         label: "Texture sampler",
         addressModeU: "clamp-to-edge",
         addressModeV: "repeat",
@@ -101,7 +103,7 @@ async function main() {
         magFilter: "linear",
         mipmapFilter: "nearest"
     });
-
+    myTexture.sampler = sampler;
 
     // Import wgsl file
     const wgslfile = document.getElementById("wgsl").src;
@@ -129,7 +131,7 @@ async function main() {
 
 
     // View setup
-    let eye = vec3(0.0, 0.0, 5.0)
+    let eye = vec3(0.0, 0.0, 1.0)
     let lookat = vec3(0.0, 0.0, 0.0)
     let up = vec3(0.0, 1.0, 0.0)
 
@@ -175,7 +177,9 @@ async function main() {
         pass.setPipeline(pipeline);
         pass.setVertexBuffer(0, positionsBuffer);
         pass.setBindGroup(0, bindGroup);
-        pass.draw(texSize)
+        pass.draw(4)
+        pass.end()
+        device.queue.submit([encoder.finish()]);
 
     }
 }
