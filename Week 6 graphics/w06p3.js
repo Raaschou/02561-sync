@@ -1,28 +1,29 @@
 window.onload = function () { main(); }
 
 async function main() {
+    // Get the context and devices
     const canvas = document.querySelector("canvas");
 
-    if (!navigator.gpu) {
-        throw new Error("WebGPU not supported on this browser.");
-    }
-
     const adapter = await navigator.gpu.requestAdapter();
-
-    if (!adapter) {
-        throw new Error("No appropriate GPUAdapter found.");
-    }
 
     const device = await adapter.requestDevice();
 
     const context = canvas.getContext("webgpu");
+
     const canvasFormat = navigator.gpu.getPreferredCanvasFormat();
 
-    context.configure({
-        device: device,
-        format: canvasFormat,
-    });
+    context.configure({ device: device, format: canvasFormat });
 
+
+    // Get earth file
+    let filename = "earth.jpg";
+    const response = await fetch(filename);
+    const blob = await response.blob();
+    const img = await createImageBitmap(blob, { colorSpaceConversion: "none" });
+
+
+
+    // Get buttons from html
     let subdivideButton = document.getElementById("subdivide")
     let coarsenButton = document.getElementById("coarsen")
     let orbitButton = document.getElementById("orbit")
@@ -96,12 +97,32 @@ async function main() {
         device.queue.writeBuffer(colorBuffer, 0, flatten(colors))
         device.queue.writeBuffer(positionBuffer, 0, flatten(positions));
     }
+
+
+    // Create texture from image
+    let myTexture = device.createTexture({
+        size: [img.width, img.height, 1],
+        format: "rgba8unorm",
+        mipLevelCount: true ? numMipLevels(img.width, img.height) : 1,
+        usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT
+    });
+
+    device.queue.copyExternalImageToTexture(
+        { source: img, flipY: true },
+        { texture: myTexture },
+        { width: img.width, height: img.height },
+    );
+
+    if (true) generateMipmap(device, myTexture);
+
+
+    // Buffer setup
+
     let indexBuffer = device.createBuffer({
         size: indices.byteLength,
         usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
     });
 
-    // Buffer setup
     const positionBuffer = device.createBuffer({
         size: sizeof['vec3'] * Math.pow(4, M + 1),
         usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
@@ -146,7 +167,7 @@ async function main() {
         }]
     }
 
-    // Render pipeline
+    // Wgsl import
     const wgslfile = document.getElementById('wgsl').src;
     const wgslcode
         = await fetch(wgslfile, { cache: "reload" }).then(r => r.text());
@@ -154,6 +175,7 @@ async function main() {
         code: wgslcode
     });
 
+    // Render pipeline
     const depthTexture = device.createTexture({
         size: { width: canvas.width, height: canvas.height },
         format: 'depth24plus',
@@ -162,23 +184,28 @@ async function main() {
     });
 
     const pipeline = device.createRenderPipeline({
+        label: "render pipeline",
         layout: 'auto',
         vertex: {
+            label: "vs in pipeline",
             module: wgsl,
             entryPoint: 'main_vs',
             buffers: [positionsBufferLayout, colorBufferLayout],
         },
         fragment: {
+            label: "fs in pipeline",
             module: wgsl,
             entryPoint: 'main_fs',
             targets: [{ format: canvasFormat }],
         },
         depthStencil: {
+            label: "ds in pipeline",
             depthWriteEnabled: true,
             depthCompare: 'less',
             format: 'depth24plus'
         },
         primitive: {
+            label: "primitive in pipeline",
             topology: 'triangle-list',
             frontFace: "ccw",
             cullMode: "back",
@@ -214,17 +241,29 @@ async function main() {
         render()
     }
 
+    let sampler = device.createSampler({
+        label: "Texture sampler",
+        addressModeU: "repeat",
+        addressModeV: "repeat",
+        minFilter: "nearest",
+        magFilter: "nearest",
+        mipmapFilter: "linear"
+    });
+
     const uniformBuffer = device.createBuffer({
+        label: "uniform buffer",
         size: sizeof['mat4'] * 4,
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
 
     const bindGroup = device.createBindGroup({
+        label: "bind group",
         layout: pipeline.getBindGroupLayout(0),
-        entries: [{
-            binding: 0,
-            resource: { buffer: uniformBuffer }
-        }],
+        entries: [
+            { binding: 0, resource: sampler },
+            { binding: 1, resource: myTexture.createView() },
+            { binding: 2, resource: { buffer: uniformBuffer } }
+        ]
     });
 
 
