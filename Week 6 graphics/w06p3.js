@@ -29,7 +29,7 @@ async function main() {
     let orbitButton = document.getElementById("orbit")
     // Scene setup
 
-    let subdivs = 3
+    let subdivs = 5
     const M = 10
 
     let orbiting = false;
@@ -108,7 +108,7 @@ async function main() {
     });
 
     device.queue.copyExternalImageToTexture(
-        { source: img, flipY: true },
+        { source: img, flipY: false },
         { texture: myTexture },
         { width: img.width, height: img.height },
     );
@@ -219,19 +219,18 @@ async function main() {
 
 
     function animate() {
+        let eye = vec3(radius * Math.sin(orbitAngle), 0.0, radius * Math.cos(orbitAngle))
 
         if (orbiting) {
             orbitAngle += 0.01
             // Rotate the eye space around sphere
             // radius = 5.0 
-            let eye = vec3(radius * Math.sin(orbitAngle), 0.0, radius * Math.cos(orbitAngle))
             const view = lookAt(eye, lookat, up);
             const mvp = mult(P, view);
 
             device.queue.writeBuffer(uniformBuffer, 0, flatten(mvp));
             requestAnimationFrame(animate)
         } else {
-            let eye = vec3(0.5, 0.5, 5.0)
 
             const view = lookAt(eye, lookat, up);
 
@@ -245,14 +244,15 @@ async function main() {
         label: "Texture sampler",
         addressModeU: "repeat",
         addressModeV: "repeat",
-        minFilter: "nearest",
-        magFilter: "nearest",
-        mipmapFilter: "linear"
+        minFilter: "linear",
+        magFilter: "linear",
+        mipmapFilter: "linear",
     });
 
+    const size = sizeof['mat4'] + 32 // size of mat4 and f32 
     const uniformBuffer = device.createBuffer({
         label: "uniform buffer",
-        size: sizeof['mat4'] * 4,
+        size: size,
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
 

@@ -15,8 +15,6 @@ var myTexture: texture_2d<f32>;
 @group(0) @binding(2)
 var<uniform> uniforms: Uniforms;
 
-const k_d: f32 = 1.0;
-const L_e: vec3f = vec3f(1.0, 1.0, 1.0);
 const I_e: vec3f = vec3f(1.0, 0.0, -0.5);
 const pi_f: f32 = 3.14159265358979323846;
 
@@ -32,17 +30,21 @@ fn main_vs(@location(0) inPos: vec4f) -> VSOut {
 
 @fragment
 fn main_fs(in: VSOut) -> @location(0) vec4f {
-    let w_i = normalize(-I_e);
+    let epsilon = 0.1;
+
+    let w_i = normalize(I_e);
     let normal = normalize(in.normal);
 
-    let cos_theta = dot(normal, w_i);
-    let diffuse = max(dot(normal, w_i), 0.0);
+    let diffuse = max(dot(normal, w_i), 0.0) + 0.2; // + 0.2 to brighten up dark side
     let phi = atan2(normal.z, normal.x);
-    let texCoord = vec2f(0.5 - phi / (2.0 * pi_f), acos(normal.y) / pi_f);
+    let u = 0.5 - phi / (2.0 * pi_f);
+    let v = acos(normal.y) / pi_f;
+    let texCoord = vec2f(u, v);
+
     let color = select(
             textureSample(myTexture, mySampler, texCoord),
             textureSampleLevel(myTexture, mySampler, texCoord, 0.0),
-            uniforms.use_mipmap == 0 || pi_f - abs(phi) < 0.1,
+            uniforms.use_mipmap == 0 || pi_f - abs(phi) < epsilon,
         );
     return vec4f(color.rgb * diffuse, color.a);
 }
