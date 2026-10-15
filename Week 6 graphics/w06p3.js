@@ -103,7 +103,7 @@ async function main() {
     let myTexture = device.createTexture({
         size: [img.width, img.height, 1],
         format: "rgba8unorm",
-        mipLevelCount: true ? numMipLevels(img.width, img.height) : 1,
+        mipLevelCount: numMipLevels(img.width, img.height),
         usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT
     });
 
@@ -113,7 +113,7 @@ async function main() {
         { width: img.width, height: img.height },
     );
 
-    if (true) generateMipmap(device, myTexture);
+    generateMipmap(device, myTexture);
 
 
     // Buffer setup
@@ -220,22 +220,20 @@ async function main() {
 
     function animate() {
         let eye = vec3(radius * Math.sin(orbitAngle), 0.0, radius * Math.cos(orbitAngle))
+        const view = lookAt(eye, lookat, up);
+        const mvp = mult(P, view);
+        const flat_mvp = flatten(mvp)
+        const data = flat_mvp
 
         if (orbiting) {
             orbitAngle += 0.01
             // Rotate the eye space around sphere
             // radius = 5.0 
-            const view = lookAt(eye, lookat, up);
-            const mvp = mult(P, view);
 
-            device.queue.writeBuffer(uniformBuffer, 0, flatten(mvp));
+            device.queue.writeBuffer(uniformBuffer, 0, data);
             requestAnimationFrame(animate)
         } else {
-
-            const view = lookAt(eye, lookat, up);
-
-            const mvp = mult(P, view);
-            device.queue.writeBuffer(uniformBuffer, 0, flatten(mvp));
+            device.queue.writeBuffer(uniformBuffer, 0, data);
         }
         render()
     }
@@ -292,7 +290,7 @@ async function main() {
             colorAttachments: [{
                 view: context.getCurrentTexture().createView(),
                 loadOp: "clear",
-                clearValue: [0.3921, 0.5843, 0.9294, 1.0],
+                clearValue: [0.0, 0.0, 0.0, 1.0],
                 storeOp: "store",
             }],
             depthStencilAttachment: {
