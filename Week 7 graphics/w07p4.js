@@ -31,6 +31,11 @@ async function main() {
         imgs.push(await createImageBitmap(blob, { colorSpaceConversion: 'none' }));
     }
 
+    // Get normal map
+    let normalFilepath = "textures/normalmap.png"
+    const response = await fetch(normalFilepath);
+    const blob = await response.blob();
+    const normalMapImage = await createImageBitmap(blob, { colorSpaceConversion: "none" });
 
 
     // Get buttons from html
@@ -114,7 +119,6 @@ async function main() {
             ...indices
         ]);
 
-        console.log(indices.length)
         if (indexBuffer) {
             indexBuffer.destroy();
         }
@@ -153,6 +157,22 @@ async function main() {
 
     generateMipmap(device, myTexture);
 
+
+    // Generate normalmap texture from image
+    let normalMapTexture = device.createTexture({
+        size: [normalMapImage.width, normalMapImage.height, 1],
+        format: "rgba8unorm",
+        mipLevelCount: numMipLevels(normalMapImage.width, normalMapImage.height),
+        usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT
+    });
+
+    device.queue.copyExternalImageToTexture(
+        { source: normalMapImage, flipY: false },
+        { texture: normalMapTexture },
+        { width: normalMapImage.width, height: normalMapImage.height },
+    );
+
+    generateMipmap(device, normalMapTexture);
 
     // Buffer setup
 
@@ -253,7 +273,7 @@ async function main() {
     let up = vec3(0.0, 1.0, 0.0)
 
     let A = canvas.width / canvas.height
-    let P = perspective(90.0, A, 0.1, 100.0)
+    let P = perspective(120.0, A, 0.1, 100.0)
 
     const reflective = [1.0]; // work around to use set, just for consistency sphereData[35] also possible
     const nonReflective = [0.0];
@@ -275,7 +295,6 @@ async function main() {
         const flatQuadMTex = flatten(quadMTex)
         const flatEye = flatten(eye)
         const uniformArraySize = flat_mvp.length + flatIMatrix.length + flatEye.length + 32 / 8
-        console.log(uniformArraySize)
         const sphereData = new Float32Array(uniformArraySize)
         sphereData.set(flat_mvp, 0)
         sphereData.set(flatIMatrix, flat_mvp.length)
@@ -285,7 +304,6 @@ async function main() {
 
 
 
-        console.log(sphereData)
         const quadData = new Float32Array(uniformArraySize)
         quadData.set(flatIMatrix, 0)
         quadData.set(flatQuadMTex, flatIMatrix.length)
@@ -336,7 +354,8 @@ async function main() {
         entries: [
             { binding: 0, resource: sampler },
             { binding: 1, resource: myTexture.createView({ dimension: "cube" }) },
-            { binding: 2, resource: { buffer: quadUniformBuffer } }
+            { binding: 2, resource: { buffer: quadUniformBuffer } },
+            { binding: 3, resource: normalMapTexture.createView() },
         ]
     });
 
@@ -346,7 +365,8 @@ async function main() {
         entries: [
             { binding: 0, resource: sampler },
             { binding: 1, resource: myTexture.createView({ dimension: "cube" }) },
-            { binding: 2, resource: { buffer: sphereUniformBuffer } }
+            { binding: 2, resource: { buffer: sphereUniformBuffer } },
+            { binding: 3, resource: normalMapTexture.createView() },
         ]
     });
 

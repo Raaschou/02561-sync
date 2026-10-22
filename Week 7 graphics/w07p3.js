@@ -114,7 +114,7 @@ async function main() {
             ...indices
         ]);
 
-        console.log(indices.length)
+
         if (indexBuffer) {
             indexBuffer.destroy();
         }
@@ -275,17 +275,13 @@ async function main() {
         const flatQuadMTex = flatten(quadMTex)
         const flatEye = flatten(eye)
         const uniformArraySize = flat_mvp.length + flatIMatrix.length + flatEye.length + 32 / 8
-        console.log(uniformArraySize)
+
         const sphereData = new Float32Array(uniformArraySize)
         sphereData.set(flat_mvp, 0)
         sphereData.set(flatIMatrix, flat_mvp.length)
         sphereData.set(flatEye, flatIMatrix.length + flat_mvp.length)
         sphereData.set(reflective, flatIMatrix.length + flat_mvp.length + flatEye.length)
 
-
-
-
-        console.log(sphereData)
         const quadData = new Float32Array(uniformArraySize)
         quadData.set(flatIMatrix, 0)
         quadData.set(flatQuadMTex, flatIMatrix.length)
