@@ -1,13 +1,13 @@
 struct VSOut {
     @builtin(position) position: vec4f,
-    @location(0) normal: vec3f,
+    @location(0) texCoord: vec3f,
 }
 
 struct Uniforms {
     mvp: mat4x4f,
     MTex: mat4x4f,
-    reflective: u32,
-    eye: mat4x4f,
+    eye: vec3f,
+    reflective: f32,
 }
 
 @group(0) @binding(0)
@@ -25,7 +25,7 @@ fn main_vs(@location(0) inPos: vec4f) -> VSOut {
     var vsOut: VSOut;
     let texCoord = (uniforms.MTex * inPos).xyz;
 
-    vsOut.normal = texCoord;
+    vsOut.texCoord = texCoord;
 
     vsOut.position = uniforms.mvp * inPos;
     return vsOut;
@@ -33,8 +33,13 @@ fn main_vs(@location(0) inPos: vec4f) -> VSOut {
 
 @fragment
 fn main_fs(in: VSOut) -> @location(0) vec4f {
-    // Use computed texCoord as normal
-    let color = textureSampleLevel(cubemap, mySampler, in.normal, 0.0);
+    let texCoord = select(
+            in.texCoord,
+            reflect(in.texCoord - uniforms.eye, in.texCoord),
+            uniforms.reflective == 1.0,
+        );
+
+    let color = textureSampleLevel(cubemap, mySampler, texCoord, 0.0);
 
     return vec4f(color);
 }

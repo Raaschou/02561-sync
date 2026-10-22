@@ -255,7 +255,8 @@ async function main() {
     let A = canvas.width / canvas.height
     let P = perspective(90.0, A, 0.1, 100.0)
 
-    const reflective = 1;
+    const reflective = [1.0]; // work around to use set, just for consistency sphereData[35] also possible
+    const nonReflective = [0.0];
     function animate() {
         let eye = vec3(radius * Math.sin(orbitAngle), 0.0, radius * Math.cos(orbitAngle))
         const view = lookAt(eye, lookat, up);
@@ -272,15 +273,25 @@ async function main() {
         )
         const quadMTex = mult(rotationView, inverse4(P))
         const flatQuadMTex = flatten(quadMTex)
-
-        const sphereData = new Float32Array(flat_mvp.length + flatIMatrix.length)
+        const flatEye = flatten(eye)
+        const uniformArraySize = flat_mvp.length + flatIMatrix.length + flatEye.length + 32 / 8
+        console.log(uniformArraySize)
+        const sphereData = new Float32Array(uniformArraySize)
         sphereData.set(flat_mvp, 0)
         sphereData.set(flatIMatrix, flat_mvp.length)
-        sphereData.set()
+        sphereData.set(flatEye, flatIMatrix.length + flat_mvp.length)
+        sphereData.set(reflective, flatIMatrix.length + flat_mvp.length + flatEye.length)
 
-        const quadData = new Float32Array(flat_mvp.length + flatIMatrix.length)
+
+
+
+        console.log(sphereData)
+        const quadData = new Float32Array(uniformArraySize)
         quadData.set(flatIMatrix, 0)
         quadData.set(flatQuadMTex, flatIMatrix.length)
+        quadData.set(flatEye, flatIMatrix.length + flatQuadMTex.length)
+        quadData.set(nonReflective, flatIMatrix.length + flatQuadMTex.length + flatEye.length)
+
 
         if (orbiting) {
             orbitAngle += 0.01
@@ -307,7 +318,7 @@ async function main() {
         mipmapFilter: "linear",
     });
 
-    const size = sizeof['mat4'] * 3 + 32 // size of mvp, MTex and eye + u32 int for reflective  
+    const size = sizeof['mat4'] * 2 + sizeof["vec3"] + 16 // size of mvp, MTex, eye, u32 for reflective  
     const sphereUniformBuffer = device.createBuffer({
         label: "uniform buffer",
         size: size,
