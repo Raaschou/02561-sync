@@ -31,8 +31,7 @@ fn main_vs(@location(0) inPos: vec4f) -> VSOut {
 
 @fragment
 fn main_fs(in: VSOut) -> @location(0) vec4f {
-    // Use normals from world space instead of uv mapping
-    //let texCoord = vec3f(in.normal.x, in.normal.y, in.normal.z);
+    // Use computed texCoord as normal
     let color = textureSampleLevel(cubemap, mySampler, in.normal, 0.0);
 
     return vec4f(color);

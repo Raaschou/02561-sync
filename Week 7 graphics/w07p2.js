@@ -50,7 +50,10 @@ async function main() {
 
     var positions = [
         //Quad
-
+        vec3(-1.0, -1.0, 0.999),
+        vec3(1.0, -1.0, 0.999),
+        vec3(-1.0, 1.0, 0.999),
+        vec3(1.0, 1.0, 0.999),
         vec3(0.0, 0.0, 1.0),
         vec3(0.0, 2.0 * M_SQRT2 / 3.0, -1.0 / 3.0),
         vec3(-M_SQRT6 / 3.0, -M_SQRT2 / 3.0, -1.0 / 3.0),
@@ -77,11 +80,15 @@ async function main() {
     ]
     let quadIndices = [
         0, 1, 2,
-        0, 3, 1,
+        3, 2, 1,
     ]
     let combinedIndices;
     function calc_indices() {
         positions = [
+            vec3(-1.0, -1.0, 0.999),
+            vec3(1.0, -1.0, 0.999),
+            vec3(-1.0, 1.0, 0.999),
+            vec3(1.0, 1.0, 0.999),
 
             vec3(0.0, 0.0, 1.0),
             vec3(0.0, 2.0 * M_SQRT2 / 3.0, -1.0 / 3.0),
@@ -258,13 +265,13 @@ async function main() {
         const view = lookAt(eye, lookat, up);
         // use MV.js to create inverse view matrix
         let inverse_view = inverse4(view)
+        // Only upper left 3x3 is wanted
         inverse_view[2][3] = 0.0;
         inverse_view[3][2] = 0.0;
         inverse_view[3][3] = 0.0
         console.log(inverse_view)
 
         let MTex = mult(inverse_view, inverse4(P))
-        // Only upper left 3x3 is watn
 
         console.log(inverse_view)
         let flat_MTex = flatten(MTex)
@@ -297,7 +304,7 @@ async function main() {
         mipmapFilter: "linear",
     });
 
-    const size = 2 * sizeof['mat4'] + 32 // size of mat4 and f32 
+    const size = 2 * sizeof['mat4']// size of mat4 and f32 
     const uniformBuffer = device.createBuffer({
         label: "uniform buffer",
         size: size,
