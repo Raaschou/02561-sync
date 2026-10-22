@@ -37,23 +37,23 @@ async function main() {
     let subdivideButton = document.getElementById("subdivide")
     let coarsenButton = document.getElementById("coarsen")
     let orbitButton = document.getElementById("orbit")
-
     // Scene setup
+
     let subdivs = 5
     const M = 10
 
     let orbiting = false;
     let orbitAngle = 0.0;
-    let radius = 5.0
+    let radius = 3.0
     const M_SQRT2 = Math.sqrt(2.0);
     const M_SQRT6 = Math.sqrt(6.0);
 
     var positions = [
-        //Quad
         vec3(-1.0, -1.0, 0.999),
         vec3(1.0, -1.0, 0.999),
         vec3(-1.0, 1.0, 0.999),
-        vec3(1.0, 1.0, 0.999),
+        vec3(1.0, 1.0, 0.999), // Quad
+
         vec3(0.0, 0.0, 1.0),
         vec3(0.0, 2.0 * M_SQRT2 / 3.0, -1.0 / 3.0),
         vec3(-M_SQRT6 / 3.0, -M_SQRT2 / 3.0, -1.0 / 3.0),
@@ -66,30 +66,24 @@ async function main() {
         0, 2, 3
     ]);
     let colors = [
-
         vec3(1.0, 1.0, 0.0),
         vec3(1.0, 0.0, 1.0),
         vec3(0.0, 1.0, 1.0),
         vec3(1.0, 1.0, 1.0),
     ];
+
     let quadVertices = [
         vec3(-1.0, -1.0, 0.999),
         vec3(1.0, -1.0, 0.999),
         vec3(-1.0, 1.0, 0.999),
-        vec3(1.0, 1.0, 0.999),
+        vec3(1.0, 1.0, 0.999), // Quad
     ]
-    let quadIndices = [
+    const quadIndices = [
         0, 1, 2,
-        3, 2, 1,
-    ]
-    let combinedIndices;
+        1, 3, 2
+    ];
     function calc_indices() {
         positions = [
-            vec3(-1.0, -1.0, 0.999),
-            vec3(1.0, -1.0, 0.999),
-            vec3(-1.0, 1.0, 0.999),
-            vec3(1.0, 1.0, 0.999),
-
             vec3(0.0, 0.0, 1.0),
             vec3(0.0, 2.0 * M_SQRT2 / 3.0, -1.0 / 3.0),
             vec3(-M_SQRT6 / 3.0, -M_SQRT2 / 3.0, -1.0 / 3.0),
@@ -102,36 +96,39 @@ async function main() {
             0, 2, 3
         ]);
         colors = [
-            vec3(0.0, 0.0, 1.0),
-            vec3(0.0, 2.0 * M_SQRT2 / 3.0, -1.0 / 3.0),
-            vec3(-M_SQRT6 / 3.0, -M_SQRT2 / 3.0, -1.0 / 3.0),
-            vec3(M_SQRT6 / 3.0, -M_SQRT2 / 3.0, -1.0 / 3.0),
+
+            vec3(1.0, 1.0, 0.0),
+            vec3(1.0, 0.0, 1.0),
+            vec3(0.0, 1.0, 1.0),
+            vec3(1.0, 1.0, 1.0),
         ];
 
         for (let i = 0; i < subdivs; ++i) {
             indices = subdivide_sphere(positions, indices, colors);
         }
-        // Insert background infront of texture
-        combinedIndices = new Uint32Array(quadIndices.length + indices.length)
-        combinedIndices.set(quadIndices, 0);
-        combinedIndices.set(indices, quadIndices.length);
 
 
+        positions = [...quadVertices, ...positions]
+        indices = new Uint32Array([
+            ...quadIndices,
+            ...indices
+        ]);
 
-
+        console.log(indices.length)
         if (indexBuffer) {
             indexBuffer.destroy();
         }
 
         indexBuffer = device.createBuffer({
-            size: combinedIndices.byteLength,
+            size: indices.byteLength,
             usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
         });
         colorBuffer = device.createBuffer({
             size: flatten(colors).byteLength,
             usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
         });
-        device.queue.writeBuffer(indexBuffer, 0, combinedIndices);
+
+        device.queue.writeBuffer(indexBuffer, 0, indices);
         device.queue.writeBuffer(colorBuffer, 0, flatten(colors))
         device.queue.writeBuffer(positionBuffer, 0, flatten(positions));
     }
@@ -165,7 +162,7 @@ async function main() {
     });
 
     const positionBuffer = device.createBuffer({
-        size: sizeof["vec3"] * 4 + sizeof['vec3'] * Math.pow(4, M + 1),
+        size: sizeof['vec3'] * Math.pow(4, M + 1),
         usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
     });
 
@@ -180,7 +177,7 @@ async function main() {
     calc_indices()
 
 
-    device.queue.writeBuffer(indexBuffer, 0, combinedIndices);
+    device.queue.writeBuffer(indexBuffer, 0, indices);
 
     device.queue.writeBuffer(positionBuffer, 0, flatten(positions));
 
@@ -231,7 +228,7 @@ async function main() {
             label: "vs in pipeline",
             module: wgsl,
             entryPoint: 'main_vs',
-            buffers: [positionsBufferLayout, colorBufferLayout,],
+            buffers: [positionsBufferLayout, colorBufferLayout],
         },
         fragment: {
             label: "fs in pipeline",
@@ -256,41 +253,46 @@ async function main() {
     let up = vec3(0.0, 1.0, 0.0)
 
     let A = canvas.width / canvas.height
-    let P = perspective(45.0, A, 0.1, 100.0)
-
+    let P = perspective(90.0, A, 0.1, 100.0)
 
 
     function animate() {
         let eye = vec3(radius * Math.sin(orbitAngle), 0.0, radius * Math.cos(orbitAngle))
         const view = lookAt(eye, lookat, up);
-        // use MV.js to create inverse view matrix
-        let inverse_view = inverse4(view)
-        // Only upper left 3x3 is wanted
-        inverse_view[2][3] = 0.0;
-        inverse_view[3][2] = 0.0;
-        inverse_view[3][3] = 0.0
-        console.log(inverse_view)
-
-        let MTex = mult(inverse_view, inverse4(P))
-
-        console.log(inverse_view)
-        let flat_MTex = flatten(MTex)
-
-
         const mvp = mult(P, view);
         const flat_mvp = flatten(mvp)
+        const identityMatrix = mat4()
+        const flatIMatrix = flatten(identityMatrix)
+        const inverseView = inverse4(view)
+        const rotationView = mat4(
+            inverseView[0][0], inverseView[0][1], inverseView[0][2], 0.0,
+            inverseView[1][0], inverseView[1][1], inverseView[1][2], 0.0,
+            inverseView[2][0], inverseView[2][1], inverseView[2][2], 0.0,
+            0.0, 0.0, 0.0, 0.0
+        )
+        const quadMTex = mult(rotationView, inverse4(P))
+        const flatQuadMTex = flatten(quadMTex)
 
-        const data = new Float32Array(flat_mvp.length + flat_MTex.length)
-        data.set(flat_mvp, 0)
-        data.set(flat_MTex, flat_mvp.length)
+        const sphereData = new Float32Array(flat_mvp.length + flatIMatrix.length)
+        sphereData.set(flat_mvp, 0)
+        sphereData.set(flatIMatrix, flat_mvp.length)
+
+        const quadData = new Float32Array(flat_mvp.length + flatIMatrix.length)
+        quadData.set(flatIMatrix, 0)
+        quadData.set(flatQuadMTex, flatIMatrix.length)
 
         if (orbiting) {
             orbitAngle += 0.01
+            // Rotate the eye space around sphere
+            // radius = 5.0 
 
-            device.queue.writeBuffer(uniformBuffer, 0, data);
+            device.queue.writeBuffer(sphereUniformBuffer, 0, sphereData);
+            device.queue.writeBuffer(quadUniformBuffer, 0, quadData);
             requestAnimationFrame(animate)
         } else {
-            device.queue.writeBuffer(uniformBuffer, 0, data);
+            device.queue.writeBuffer(sphereUniformBuffer, 0, sphereData);
+            device.queue.writeBuffer(quadUniformBuffer, 0, quadData);
+
         }
         render()
     }
@@ -304,20 +306,35 @@ async function main() {
         mipmapFilter: "linear",
     });
 
-    const size = 2 * sizeof['mat4']// size of mat4 and f32 
-    const uniformBuffer = device.createBuffer({
+    const size = sizeof['mat4'] * 2 // size of mat4 and f32 
+    const sphereUniformBuffer = device.createBuffer({
+        label: "uniform buffer",
+        size: size,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
+    const quadUniformBuffer = device.createBuffer({
         label: "uniform buffer",
         size: size,
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
 
-    const bindGroup = device.createBindGroup({
+    const quadBindGroup = device.createBindGroup({
         label: "bind group",
         layout: pipeline.getBindGroupLayout(0),
         entries: [
             { binding: 0, resource: sampler },
             { binding: 1, resource: myTexture.createView({ dimension: "cube" }) },
-            { binding: 2, resource: { buffer: uniformBuffer } }
+            { binding: 2, resource: { buffer: quadUniformBuffer } }
+        ]
+    });
+
+    const sphereBindGroup = device.createBindGroup({
+        label: "bind group",
+        layout: pipeline.getBindGroupLayout(0),
+        entries: [
+            { binding: 0, resource: sampler },
+            { binding: 1, resource: myTexture.createView({ dimension: "cube" }) },
+            { binding: 2, resource: { buffer: sphereUniformBuffer } }
         ]
     });
 
@@ -360,15 +377,18 @@ async function main() {
 
         pass.setPipeline(pipeline);
         pass.setVertexBuffer(0, positionBuffer);
-        /// pass.setVertexBuffer(1, quadBuffer);
         pass.setVertexBuffer(1, colorBuffer);
-        pass.setBindGroup(0, bindGroup);
         pass.setIndexBuffer(indexBuffer, 'uint32');
 
+        pass.setBindGroup(0, quadBindGroup);
+        pass.drawIndexed(6);
 
-        // pass.drawIndexed(0, 1, 6, 4)
-        pass.drawIndexed(quadIndices.length);
-        pass.drawIndexed(indices.length, 1, 6, 4)
+
+        pass.setBindGroup(0, sphereBindGroup);
+
+
+        pass.drawIndexed(indices.length - 6, 1, 6, 4);
+
         //pass.draw(positions.length);
         pass.end();
         device.queue.submit([encoder.finish()]);

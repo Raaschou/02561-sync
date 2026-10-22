@@ -11,7 +11,11 @@ struct Uniforms {
 var<uniform> uniforms: Uniforms;
 
 @vertex
-fn main_vs(@builtin(instance_index) instanceIdx: u32, @location(0) inPos: vec4f, @location(1) inColor: vec3f) -> VSOut {
+fn main_vs(
+    @builtin(instance_index) instanceIdx: u32,
+    @location(0) inPos: vec4f,
+    @location(1) inColor: vec3f,
+) -> VSOut {
     var vsOut: VSOut;
 
     let p = uniforms.mvp[instanceIdx] * inPos;
