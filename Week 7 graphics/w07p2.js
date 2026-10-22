@@ -37,8 +37,8 @@ async function main() {
     let subdivideButton = document.getElementById("subdivide")
     let coarsenButton = document.getElementById("coarsen")
     let orbitButton = document.getElementById("orbit")
-    // Scene setup
 
+    // Scene setup
     let subdivs = 5
     const M = 10
 
@@ -49,6 +49,8 @@ async function main() {
     const M_SQRT6 = Math.sqrt(6.0);
 
     var positions = [
+        //Quad
+
         vec3(0.0, 0.0, 1.0),
         vec3(0.0, 2.0 * M_SQRT2 / 3.0, -1.0 / 3.0),
         vec3(-M_SQRT6 / 3.0, -M_SQRT2 / 3.0, -1.0 / 3.0),
@@ -61,14 +63,26 @@ async function main() {
         0, 2, 3
     ]);
     let colors = [
+
         vec3(1.0, 1.0, 0.0),
         vec3(1.0, 0.0, 1.0),
         vec3(0.0, 1.0, 1.0),
         vec3(1.0, 1.0, 1.0),
     ];
-
+    let quadVertices = [
+        vec3(-1.0, -1.0, 0.999),
+        vec3(1.0, -1.0, 0.999),
+        vec3(-1.0, 1.0, 0.999),
+        vec3(1.0, 1.0, 0.999),
+    ]
+    let quadIndices = [
+        0, 1, 2,
+        0, 3, 1,
+    ]
+    let combinedIndices;
     function calc_indices() {
         positions = [
+
             vec3(0.0, 0.0, 1.0),
             vec3(0.0, 2.0 * M_SQRT2 / 3.0, -1.0 / 3.0),
             vec3(-M_SQRT6 / 3.0, -M_SQRT2 / 3.0, -1.0 / 3.0),
@@ -90,20 +104,27 @@ async function main() {
         for (let i = 0; i < subdivs; ++i) {
             indices = subdivide_sphere(positions, indices, colors);
         }
-        console.log(indices.length)
+        // Insert background infront of texture
+        combinedIndices = new Uint32Array(quadIndices.length + indices.length)
+        combinedIndices.set(quadIndices, 0);
+        combinedIndices.set(indices, quadIndices.length);
+
+
+
+
         if (indexBuffer) {
             indexBuffer.destroy();
         }
 
         indexBuffer = device.createBuffer({
-            size: indices.byteLength,
+            size: combinedIndices.byteLength,
             usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
         });
         colorBuffer = device.createBuffer({
             size: flatten(colors).byteLength,
             usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
         });
-        device.queue.writeBuffer(indexBuffer, 0, indices);
+        device.queue.writeBuffer(indexBuffer, 0, combinedIndices);
         device.queue.writeBuffer(colorBuffer, 0, flatten(colors))
         device.queue.writeBuffer(positionBuffer, 0, flatten(positions));
     }
@@ -137,7 +158,7 @@ async function main() {
     });
 
     const positionBuffer = device.createBuffer({
-        size: sizeof['vec3'] * Math.pow(4, M + 1),
+        size: sizeof["vec3"] * 4 + sizeof['vec3'] * Math.pow(4, M + 1),
         usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
     });
 
@@ -152,7 +173,7 @@ async function main() {
     calc_indices()
 
 
-    device.queue.writeBuffer(indexBuffer, 0, indices);
+    device.queue.writeBuffer(indexBuffer, 0, combinedIndices);
 
     device.queue.writeBuffer(positionBuffer, 0, flatten(positions));
 
@@ -203,7 +224,7 @@ async function main() {
             label: "vs in pipeline",
             module: wgsl,
             entryPoint: 'main_vs',
-            buffers: [positionsBufferLayout, colorBufferLayout],
+            buffers: [positionsBufferLayout, colorBufferLayout,],
         },
         fragment: {
             label: "fs in pipeline",
@@ -231,17 +252,33 @@ async function main() {
     let P = perspective(45.0, A, 0.1, 100.0)
 
 
+
     function animate() {
         let eye = vec3(radius * Math.sin(orbitAngle), 0.0, radius * Math.cos(orbitAngle))
         const view = lookAt(eye, lookat, up);
+        // use MV.js to create inverse view matrix
+        let inverse_view = inverse4(view)
+        inverse_view[2][3] = 0.0;
+        inverse_view[3][2] = 0.0;
+        inverse_view[3][3] = 0.0
+        console.log(inverse_view)
+
+        let MTex = mult(inverse_view, inverse4(P))
+        // Only upper left 3x3 is watn
+
+        console.log(inverse_view)
+        let flat_MTex = flatten(MTex)
+
+
         const mvp = mult(P, view);
         const flat_mvp = flatten(mvp)
-        const data = flat_mvp
+
+        const data = new Float32Array(flat_mvp.length + flat_MTex.length)
+        data.set(flat_mvp, 0)
+        data.set(flat_MTex, flat_mvp.length)
 
         if (orbiting) {
             orbitAngle += 0.01
-            // Rotate the eye space around sphere
-            // radius = 5.0 
 
             device.queue.writeBuffer(uniformBuffer, 0, data);
             requestAnimationFrame(animate)
@@ -260,7 +297,7 @@ async function main() {
         mipmapFilter: "linear",
     });
 
-    const size = sizeof['mat4'] + 32 // size of mat4 and f32 
+    const size = 2 * sizeof['mat4'] + 32 // size of mat4 and f32 
     const uniformBuffer = device.createBuffer({
         label: "uniform buffer",
         size: size,
@@ -316,12 +353,15 @@ async function main() {
 
         pass.setPipeline(pipeline);
         pass.setVertexBuffer(0, positionBuffer);
+        /// pass.setVertexBuffer(1, quadBuffer);
         pass.setVertexBuffer(1, colorBuffer);
         pass.setBindGroup(0, bindGroup);
         pass.setIndexBuffer(indexBuffer, 'uint32');
 
 
-        pass.drawIndexed(indices.length);
+        // pass.drawIndexed(0, 1, 6, 4)
+        pass.drawIndexed(quadIndices.length);
+        pass.drawIndexed(indices.length, 1, 6, 4)
         //pass.draw(positions.length);
         pass.end();
         device.queue.submit([encoder.finish()]);
