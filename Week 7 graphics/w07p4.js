@@ -23,10 +23,19 @@ async function main() {
         'textures/cm_bottom.png', // NEGATIVE_Y
         'textures/cm_back.png', // POSITIVE_Z
         'textures/cm_front.png']; // NEGATIVE_Z
+
+    let cloudyhillsCubemap = [
+        'textures/cloudyhills_cubemap/cloudyhills_posx.jpg', // POSITIVE_X
+        'textures/cloudyhills_cubemap/cloudyhills_negx.jpg', // NEGATIVE_X
+        'textures/cloudyhills_cubemap/cloudyhills_posy.jpg', // POSITIVE_Y
+        'textures/cloudyhills_cubemap/cloudyhills_negy.jpg', // NEGATIVE_Y
+        'textures/cloudyhills_cubemap/cloudyhills_posz.jpg', // POSITIVE_Z
+        'textures/cloudyhills_cubemap/cloudyhills_negz.jpg' // NEGATIVE_Z
+    ];
     let imgs = [];
 
-    for (let i = 0; i < cubemap.length; ++i) {
-        const response = await fetch(cubemap[i]);
+    for (let i = 0; i < cloudyhillsCubemap.length; ++i) {
+        const response = await fetch(cloudyhillsCubemap[i]);
         const blob = await response.blob();
         imgs.push(await createImageBitmap(blob, { colorSpaceConversion: 'none' }));
     }
@@ -149,7 +158,7 @@ async function main() {
 
     for (let i = 0; i < cubemap.length; ++i) {
         device.queue.copyExternalImageToTexture(
-            { source: imgs[i], flipY: true },
+            { source: imgs[i], flipY: false },
             { texture: myTexture, origin: [0, 0, i] },
             { width: imgs[i].width, height: imgs[i].height }
         );
