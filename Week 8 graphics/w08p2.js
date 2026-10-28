@@ -204,6 +204,7 @@ async function main() {
     let A = canvas.width / canvas.height
     let mvp_perspective = perspective(90.0, A, 0.1, 100.0)
 
+    const M_s = mat4()
     const view = lookAt(eye, lookat, up)
     const mvp = mult(mvp_perspective, view)
 
