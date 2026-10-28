@@ -34,10 +34,10 @@ async function main() {
     const texSize = 64;
 
     let rectangle = [
-        vec3(-4, -1, -1),
-        vec3(4, -1, -1),
-        vec3(4, -1, -21),
-        vec3(-4, -1, -21),
+        vec3(-2, -1, -1),
+        vec3(2, -1, -1),
+        vec3(2, -1, -5),
+        vec3(-2, -1, -5),
     ];
 
     let texCoords = [
@@ -57,7 +57,16 @@ async function main() {
     // Use checkerboard function to create texture
     let checkerBoardTexture = checkerBoard(texSize, myTexels)
 
+    // Get texture
+    // Get normal map
+    let planeFilepath = "xamp23.png"
+    const response = await fetch(planeFilepath);
+    const blob = await response.blob();
+    const planeImg = await createImageBitmap(blob, { colorSpaceConversion: "none" });
+
     // Scene setup
+
+
 
     // Rectangle/postions buffer
     const positionsBuffer = device.createBuffer({
@@ -110,18 +119,23 @@ async function main() {
 
 
     const myTexture = device.createTexture({
-        label: "checkerboard texture",
-        size: [texSize, texSize, 1],
+        label: "plane texture",
+        size: [planeImg.width, planeImg.height, 1],
         format: "rgba8unorm",
-        usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING
+        usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT
     });
 
-    device.queue.writeTexture(
+    device.queue.copyExternalImageToTexture(
+        { source: planeImg, flipY: false },
+        { texture: myTexture },
+        { width: planeImg.width, height: planeImg.height },
+    );
+    /* device.queue.writeTexture(
         { texture: myTexture },
         checkerBoardTexture,
-        { offset: 0, bytesPerRow: texSize * 4, rowsPerImage: texSize },
-        [texSize, texSize, 1]
-    );
+        { offset: 0, bytesPerRow: planeImg[0] * 4, rowsPerImage: planeImg[0] },
+        [planeImg[0], planeImg[0], 1]
+    ); */
 
     // Using WebGPU's and lecture code
     // unsure if it works
