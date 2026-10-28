@@ -1,20 +1,5 @@
 window.onload = function () { main(); }
 
-function checkerBoard(texSize, myTexels) {
-    const numRows = 8
-    const numCols = 8
-    for (var i = 0; i < texSize; ++i)
-        for (var j = 0; j < texSize; ++j) {
-            var patchx = Math.floor(i / (texSize / numRows));
-            var patchy = Math.floor(j / (texSize / numCols));
-            var c = (patchx % 2 !== patchy % 2 ? 255 : 0);
-            var idx = 4 * (i * texSize + j);
-            myTexels[idx] = myTexels[idx + 1] = myTexels[idx + 2] = c;
-            myTexels[idx + 3] = 255;
-        }
-    return myTexels;
-}
-
 async function main() {
 
     // Get the context and devices
@@ -33,31 +18,43 @@ async function main() {
     // Variables
     const texSize = 64;
 
-    let rectangle = [
+    let groundPlane = [
         vec3(-2, -1, -1),
         vec3(2, -1, -1),
         vec3(2, -1, -5),
         vec3(-2, -1, -5),
     ];
 
+    let leftQuad = [
+        vec3(0.25, -0.5, -1.25),
+        vec3(0.75, -0.5, -1.25),
+        vec3(0.75, -0.5, -1.75),
+        vec3(0.25, -0.5, -1.75),
+    ];
+
+    let rightQuad = [
+        vec3(-1.0, -1.0, -2.5),
+        vec3(-1.0, 0, -2.5),
+        vec3(-1.0, 0, -3.0),
+        vec3(- 1.0, -1.0, -3.0)
+    ];
+
     let texCoords = [
-        vec2(-1.5, 0.0),
-        vec2(2.5, 0.0),
-        vec2(2.5, 10.0),
-        vec2(-1.5, 10.0)
+        vec2(0, 0),
+        vec2(1, 0),
+        vec2(1, 1),
+        vec2(0, 1),
     ]
+
+
 
     let indices = new Uint32Array([
         0, 1, 2,
-        0, 2, 3
+        0, 2, 3,
     ]);
 
-    let myTexels = new Uint8Array(4 * texSize * texSize); // 4 for RGBA image, texSize is the resolution
+    let redColor = new Uint8Array([255, 0, 0, 255])
 
-    // Use checkerboard function to create texture
-    let checkerBoardTexture = checkerBoard(texSize, myTexels)
-
-    // Get texture
     // Get normal map
     let planeFilepath = "xamp23.png"
     const response = await fetch(planeFilepath);
@@ -67,15 +64,15 @@ async function main() {
     // Scene setup
 
 
-
-    // Rectangle/postions buffer
+    let positions = [...groundPlane, ...leftQuad, ...rightQuad]
+    // groundPlane/postions buffer
     const positionsBuffer = device.createBuffer({
         label: "positions buffer",
-        size: flatten(rectangle).byteLength,
+        size: flatten(positions).byteLength,
         usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
     });
 
-    device.queue.writeBuffer(positionsBuffer, 0, flatten(rectangle))
+    device.queue.writeBuffer(positionsBuffer, 0, flatten(positions))
 
     const positionsBufferLayout = {
         label: "pos buffer layout",
@@ -88,6 +85,7 @@ async function main() {
     }
 
     // Texture coordinates buffer
+
     const textureBuffer = device.createBuffer({
         label: "texture buffer",
         size: flatten(texCoords).byteLength,
@@ -95,6 +93,7 @@ async function main() {
     })
 
     device.queue.writeBuffer(textureBuffer, 0, flatten(texCoords))
+
     const textureBufferLayout = {
         label: "texture buffer layout",
         arrayStride: sizeof["vec2"],
@@ -102,6 +101,24 @@ async function main() {
             format: "float32x2",
             offset: 0,
             shaderLocation: 1,
+        }]
+    }
+
+    const redTextureBuffer = device.createBuffer({
+        label: "redTexture buffer",
+        size: flatten(redColor).byteLength,
+        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+    })
+
+    device.queue.writeBuffer(redTextureBuffer, 0, flatten(redColor))
+
+    const redTextureBufferLayout = {
+        label: "redTexture buffer layout",
+        arrayStride: sizeof["vec3"],
+        attributes: [{
+            format: "float32x3",
+            offset: 0,
+            shaderLocation: 2,
         }]
     }
 
@@ -113,9 +130,6 @@ async function main() {
     })
 
     device.queue.writeBuffer(indexBuffer, 0, indices)
-
-
-
 
 
     const myTexture = device.createTexture({
@@ -130,22 +144,31 @@ async function main() {
         { texture: myTexture },
         { width: planeImg.width, height: planeImg.height },
     );
-    /* device.queue.writeTexture(
-        { texture: myTexture },
-        checkerBoardTexture,
-        { offset: 0, bytesPerRow: planeImg[0] * 4, rowsPerImage: planeImg[0] },
-        [planeImg[0], planeImg[0], 1]
-    ); */
 
-    // Using WebGPU's and lecture code
-    // unsure if it works
+    const redTexture = device.createTexture({
+        label: "Red texture",
+        size: [flatten(redColor).byteLength],
+        format: "rgba8unorm",
+        usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT
+    })
+
+    device.queue.writeTexture(
+        { texture: redTexture },
+        redColor,
+        { bytesPerRow: 4 },
+        { width: 1, height: 1, depthOrArrayLayers: 1 }
+    )
+
+
+    // Only providing label for sampler, to appease the binding code
+    // as mipmapping and so on is not needed here
     myTexture.sampler = device.createSampler({
         label: "Texture sampler",
-        addressModeU: "repeat",
-        addressModeV: "repeat",
-        minFilter: "nearest",
-        magFilter: "linear",
-        mipmapFilter: "nearest"
+
+    });
+
+    redTexture.sampler = device.createSampler({
+        label: "Texture sampler",
     });
 
     // Import wgsl file
@@ -191,12 +214,22 @@ async function main() {
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
 
-    const bindGroup = device.createBindGroup({
-        label: "bind group",
+    const planeBindGroup = device.createBindGroup({
+        label: "plane bind group",
         layout: pipeline.getBindGroupLayout(0),
         entries: [
             { binding: 0, resource: myTexture.sampler },
             { binding: 1, resource: myTexture.createView() },
+            { binding: 2, resource: { buffer: uniformBuffer } },
+        ],
+    });
+
+    const redBindGroup = device.createBindGroup({
+        label: "plane bind group",
+        layout: pipeline.getBindGroupLayout(0),
+        entries: [
+            { binding: 0, resource: redTexture.sampler },
+            { binding: 1, resource: redTexture.createView() },
             { binding: 2, resource: { buffer: uniformBuffer } },
         ],
     });
@@ -220,9 +253,17 @@ async function main() {
         pass.setPipeline(pipeline);
         pass.setVertexBuffer(0, positionsBuffer);
         pass.setVertexBuffer(1, textureBuffer);
-        pass.setBindGroup(0, bindGroup);
+        pass.setVertexBuffer(2, redTextureBuffer);
         pass.setIndexBuffer(indexBuffer, 'uint32');
-        pass.drawIndexed(indices.length);
+
+        pass.setBindGroup(0, planeBindGroup);
+        pass.drawIndexed(6, 1, 0, 0);
+
+
+        pass.setBindGroup(0, redBindGroup);
+        pass.drawIndexed(6, 1, 0, 4);
+        pass.drawIndexed(6, 1, 0, 8);
+
         pass.end()
         device.queue.submit([encoder.finish()]);
 
