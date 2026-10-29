@@ -1,7 +1,7 @@
 window.onload = function () { main(); }
 
 // Helper function for creating bindGroups
-function createBindGroup(pipeline, texture, uniformBuffer) {
+function createBindGroup(device, pipeline, texture, uniformBuffer) {
     return device.createBindGroup({
         label: "plane bind group",
         layout: pipeline.getBindGroupLayout(0),
@@ -13,7 +13,7 @@ function createBindGroup(pipeline, texture, uniformBuffer) {
     })
 }
 
-function createUniformBuffer(size) {
+function createUniformBuffer(device, size) {
     return device.createBuffer({
         label: "uniformBuffer",
         size: size,
@@ -43,7 +43,8 @@ async function main() {
     let orbiting = false;
     let orbitAngle = 0.0
     const radius = 2.0
-
+    const visibility = 1.0 // default visibility
+    const shadowVisibility = 0.0
 
     let groundPlane = [
         vec3(-2, -1, -1),
@@ -232,42 +233,63 @@ async function main() {
     const A = canvas.width / canvas.height
     let mvp_perspective = perspective(90.0, A, 0.1, 100.0)
 
-    const planenormal
+    // plane normal, n, defined by assignment
+    const n = vec3(0, 1, 0)
+    // p is a point in ground plane
+    const p = groundPlane[0]
 
+    const d = -dot(p, n) // this is equal to 1
+
+    let a = d + dot(n, pointLight);
+
+    // Shadow projection matrix
     const M_s = mat4(
+        a - pointLight[0] * n[0], -pointLight[0] * n[1], -pointLight[0] * n[2], -pointLight[0] * d,
+        pointLight[1] * n[0], a - pointLight[1] * n[1], -pointLight[1] * n[2], -pointLight[1] * d,
+        pointLight[2] * n[0], pointLight[2] * n[1], a - pointLight[2] * n[2], -pointLight[2] * d,
+        -n[0], -n[1], -n[2], a - d
 
     )
+
     const view = lookAt(eye, lookat, up)
     const mvp = mult(mvp_perspective, view)
     const flatMvp = flatten(mvp);
     let flatPointLight = flatten(pointLight)
 
-    let uniformArraySize = (flatMvp.length + pointLight.length + 1)
-    let data = new Float32Array(uniformArraySize);
+    const shadowMvp = mult(M_s, view)
+    const flatShadowMvp = flatten(shadowMvp)
 
+    let uniformArraySize = (flatMvp.length + pointLight.length + 1)
+
+    let data = new Float32Array(uniformArraySize);
     data.set((flatMvp))
     data.set(flatPointLight, flatMvp.length)
 
-    let visibility = 1.0 // default visibility
-
     data[flatMvp.length + flatPointLight.length] = visibility
 
+
+    let shadowData = new Float32Array(uniformArraySize);
+    shadowData.set((flatShadowMvp))
+    shadowData.set(flatPointLight, flatShadowMvp.length)
+    shadowData[flatMvp.length + flatPointLight.length] = shadowVisibility
+
+
     // Mat 4(4 rows *4 cols*4 bytes per f32) + vec3f(3*4 bytes per f32) + f32
-    const uniformBufferSize = (64 + 16 + 4)
+    const uniformBufferSize = (64 + 16 + 16)
     // Uniform buffer and bind group
-    const uniformBuffer = createUniformBuffer(uniformBufferSize)
+    const uniformBuffer = createUniformBuffer(device, uniformBufferSize)
+    const shadowUniformBuffer = createUniformBuffer(device, uniformBufferSize)
 
 
-    const planeBindGroup = createBindGroup(pipeline, myTexture, uniformBuffer)
 
-    const redBindGroup = createBindGroup(pipeline, redTexture, uniformBuffer)
+
+    const planeBindGroup = createBindGroup(device, pipeline, myTexture, uniformBuffer)
+
+    const redBindGroup = createBindGroup(device, pipeline, redTexture, uniformBuffer)
     device.queue.writeBuffer(uniformBuffer, 0, data)
 
-    // TODO change visibility for shadow group
-    const shadowVisibility = 0.0
-    data[flatMvp.length + flatPointLight.length] = shadowVisibility
-    const shadowBindGroup = createBindGroup(pipeline, redTexture, uniformBuffer)
-    device.queue.writeBuffer(uniformBuffer, 0, data)
+    const shadowBindGroup = createBindGroup(device, pipeline, redTexture, shadowUniformBuffer)
+    device.queue.writeBuffer(shadowUniformBuffer, 0, shadowData)
 
 
 
@@ -312,10 +334,14 @@ async function main() {
         pass.setVertexBuffer(2, redTextureBuffer);
         pass.setIndexBuffer(indexBuffer, 'uint32');
 
+        // Draw ground
         pass.setBindGroup(0, planeBindGroup);
         pass.drawIndexed(6, 1, 0, 0);
-
-
+        // Then draw shadows on plane
+        pass.setBindGroup(0, shadowBindGroup);
+        pass.drawIndexed(6, 1, 0, 4);
+        pass.drawIndexed(6, 1, 0, 8);
+        // Lastly draw red quads
         pass.setBindGroup(0, redBindGroup);
         pass.drawIndexed(6, 1, 0, 4);
         pass.drawIndexed(6, 1, 0, 8);
