@@ -24,10 +24,13 @@ fn main_vs(@location(0) inPos: vec4f, @location(1) inCoord: vec2f) -> VSOut {
     let p = uniforms.mvp * inPos;
     vsOut.texCoord = inCoord * uniforms.visibility;
     vsOut.position = p;
+
     return vsOut;
 }
 
 @fragment
 fn main_fs(fsInput: VSOut) -> @location(0) vec4f {
-    return textureSample(myTexture, mySampler, fsInput.texCoord);
+    let color = textureSample(myTexture, mySampler, fsInput.texCoord);
+    // Mult by visibility to create shadow
+    return vec4f(color.rgb * uniforms.visibility, color.a);
 }

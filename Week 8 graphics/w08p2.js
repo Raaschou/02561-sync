@@ -245,8 +245,8 @@ async function main() {
     // Shadow projection matrix
     const M_s = mat4(
         a - pointLight[0] * n[0], -pointLight[0] * n[1], -pointLight[0] * n[2], -pointLight[0] * d,
-        pointLight[1] * n[0], a - pointLight[1] * n[1], -pointLight[1] * n[2], -pointLight[1] * d,
-        pointLight[2] * n[0], pointLight[2] * n[1], a - pointLight[2] * n[2], -pointLight[2] * d,
+        -pointLight[1] * n[0], a - pointLight[1] * n[1], -pointLight[1] * n[2], -pointLight[1] * d,
+        -pointLight[2] * n[0], -pointLight[2] * n[1], a - pointLight[2] * n[2], -pointLight[2] * d,
         -n[0], -n[1], -n[2], a - d
 
     )
@@ -256,7 +256,7 @@ async function main() {
     const flatMvp = flatten(mvp);
     let flatPointLight = flatten(pointLight)
 
-    const shadowMvp = mult(M_s, view)
+    const shadowMvp = mult(mvp_perspective, mult(view, M_s))
     const flatShadowMvp = flatten(shadowMvp)
 
     let uniformArraySize = (flatMvp.length + pointLight.length + 1)
