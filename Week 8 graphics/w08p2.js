@@ -2,7 +2,7 @@ window.onload = function () { main(); }
 
 // Helper function for creating bindGroups
 function createBindGroup(pipeline, texture, uniformBuffer) {
-    const bindGroup = device.createBindGroup({
+    return device.createBindGroup({
         label: "plane bind group",
         layout: pipeline.getBindGroupLayout(0),
         entries: [
@@ -11,7 +11,14 @@ function createBindGroup(pipeline, texture, uniformBuffer) {
             { binding: 2, resource: { buffer: uniformBuffer } },
         ],
     })
-    return bindGroup
+}
+
+function createUniformBuffer(size) {
+    return device.createBuffer({
+        label: "uniformBuffer",
+        size: size,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
 }
 async function main() {
 
@@ -213,18 +220,20 @@ async function main() {
             entryPoint: "main_fs",
             targets: [{ format: canvasFormat }],
         },
-        primitive: { label: "primitive triorbitAngle list", topology: "triorbitAngle-list" },
+        primitive: { label: "primitive triangle list", topology: "triangle-list" },
     })
 
 
     // View setup
-    let eye = vec3(0.0, 0.0, 0.0)
-    let lookat = vec3(0.0, 0.0, 0.0)
-    let up = vec3(0.0, 1.0, 0.0)
+    const eye = vec3(0.0, 0.0, 0.0)
+    const lookat = vec3(0.0, 0.0, 0.0)
+    const up = vec3(0.0, 1.0, 0.0)
 
-    let A = canvas.width / canvas.height
+    const A = canvas.width / canvas.height
     let mvp_perspective = perspective(90.0, A, 0.1, 100.0)
-    let visibility = 1.0 // default visibility
+
+    const planenormal
+
     const M_s = mat4(
 
     )
@@ -238,17 +247,15 @@ async function main() {
 
     data.set((flatMvp))
     data.set(flatPointLight, flatMvp.length)
+
+    let visibility = 1.0 // default visibility
+
     data[flatMvp.length + flatPointLight.length] = visibility
 
-
-    // Mat4 (4 rows * 4 columns * 4 bytes per f32) + vec3f (3*4 bytes per f32) + f32
-    const uniformBufferSize = (64 + 12 + 4)
+    // Mat 4(4 rows *4 cols*4 bytes per f32) + vec3f(3*4 bytes per f32) + f32
+    const uniformBufferSize = (64 + 16 + 4)
     // Uniform buffer and bind group
-    const uniformBuffer = device.createBuffer({
-        label: "uniformBuffer",
-        size: uniformBufferSize,
-        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    });
+    const uniformBuffer = createUniformBuffer(uniformBufferSize)
 
 
     const planeBindGroup = createBindGroup(pipeline, myTexture, uniformBuffer)
