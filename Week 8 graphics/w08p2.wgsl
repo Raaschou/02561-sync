@@ -5,6 +5,9 @@ struct VSOut {
 
 struct Uniforms {
     mvp: mat4x4f,
+    // make shadows black using visibility uniform
+    visibility: f32,
+    lightPos: vec3f,
 }
 
 

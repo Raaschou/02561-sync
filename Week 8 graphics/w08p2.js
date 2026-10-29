@@ -1,5 +1,18 @@
 window.onload = function () { main(); }
 
+// Helper function for creating bindGroups
+function createBindGroup(pipeline, texture, uniformBuffer) {
+    const bindGroup = device.createBindGroup({
+        label: "plane bind group",
+        layout: pipeline.getBindGroupLayout(0),
+        entries: [
+            { binding: 0, resource: texture.sampler },
+            { binding: 1, resource: texture.createView() },
+            { binding: 2, resource: { buffer: uniformBuffer } },
+        ],
+    })
+    return bindGroup
+}
 async function main() {
 
     // Get the context and devices
@@ -15,8 +28,15 @@ async function main() {
 
     context.configure({ device: device, format: canvasFormat });
 
+    const orbitButton = document.getElementById("orbit");
+
+
     // Variables
     const texSize = 64;
+    let orbiting = false;
+    let orbitAngle = 0.0
+    const radius = 2.0
+
 
     let groundPlane = [
         vec3(-2, -1, -1),
@@ -46,6 +66,7 @@ async function main() {
         vec2(0, 1),
     ]
 
+    let pointLight = vec3(radius * Math.sin(orbitAngle), 2.0, -2.0);
 
 
     let indices = new Uint32Array([
@@ -192,7 +213,7 @@ async function main() {
             entryPoint: "main_fs",
             targets: [{ format: canvasFormat }],
         },
-        primitive: { label: "primitive triangle list", topology: "triangle-list" },
+        primitive: { label: "primitive triorbitAngle list", topology: "triorbitAngle-list" },
     })
 
 
@@ -203,41 +224,67 @@ async function main() {
 
     let A = canvas.width / canvas.height
     let mvp_perspective = perspective(90.0, A, 0.1, 100.0)
+    let visibility = 1.0 // default visibility
+    const M_s = mat4(
 
-    const M_s = mat4()
+    )
     const view = lookAt(eye, lookat, up)
     const mvp = mult(mvp_perspective, view)
+    const flatMvp = flatten(mvp);
+    let flatPointLight = flatten(pointLight)
 
+    let uniformArraySize = (flatMvp.length + pointLight.length + 1)
+    let data = new Float32Array(uniformArraySize);
+
+    data.set((flatMvp))
+    data.set(flatPointLight, flatMvp.length)
+    data[flatMvp.length + flatPointLight.length] = visibility
+
+
+    const uniformBufferSize = (16 + 4 + 4) // Mat 4 + vec3f + f32
     // Uniform buffer and bind group
     const uniformBuffer = device.createBuffer({
         label: "uniformBuffer",
-        size: sizeof['mat4'],
+        size: uniformBufferSize,
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
 
-    const planeBindGroup = device.createBindGroup({
-        label: "plane bind group",
-        layout: pipeline.getBindGroupLayout(0),
-        entries: [
-            { binding: 0, resource: myTexture.sampler },
-            { binding: 1, resource: myTexture.createView() },
-            { binding: 2, resource: { buffer: uniformBuffer } },
-        ],
-    });
 
-    const redBindGroup = device.createBindGroup({
-        label: "plane bind group",
-        layout: pipeline.getBindGroupLayout(0),
-        entries: [
-            { binding: 0, resource: redTexture.sampler },
-            { binding: 1, resource: redTexture.createView() },
-            { binding: 2, resource: { buffer: uniformBuffer } },
-        ],
-    });
+    const planeBindGroup = createBindGroup(pipeline, myTexture, uniformBuffer)
 
-    device.queue.writeBuffer(uniformBuffer, 0, flatten(mvp))
+    const redBindGroup = createBindGroup(pipeline, redTexture, uniformBuffer)
+    device.queue.writeBuffer(uniformBuffer, 0, data)
+
+    // TODO change visibility for shadow group
+    const shadowVisibility = 0.0
+    data[flatMvp.length + flatPointLight.length] = shadowVisibility
+    const shadowBindGroup = createBindGroup(pipeline, redTexture, uniformBuffer)
+    device.queue.writeBuffer(uniformBuffer, 0, data)
+
+
+
+
+    orbitButton.addEventListener("click", function () {
+        orbiting = !orbiting;
+        requestAnimationFrame(animate)
+    });
 
     render();
+
+    function animate() {
+        // If light is orbiting, update the position
+        if (orbiting) {
+            orbitAngle += 0.1
+            pointLight = vec3(radius * Math.sin(orbitAngle), 2.0, -2)
+            render()
+            requestAnimationFrame(animate)
+        }
+
+        // Update uniform values, i.e. point light pos
+        //device.queue.writeBuffer(uniformBuffer, 0, data)
+        render();
+    }
+
 
     function render() {
         const encoder = device.createCommandEncoder();
@@ -264,6 +311,8 @@ async function main() {
         pass.setBindGroup(0, redBindGroup);
         pass.drawIndexed(6, 1, 0, 4);
         pass.drawIndexed(6, 1, 0, 8);
+
+
 
         pass.end()
         device.queue.submit([encoder.finish()]);
