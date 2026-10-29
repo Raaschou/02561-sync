@@ -53,18 +53,18 @@ async function main() {
         vec3(-2, -1, -5),
     ];
 
-    let leftQuad = [
+    let rightQuad = [
         vec3(0.25, -0.5, -1.25),
         vec3(0.75, -0.5, -1.25),
         vec3(0.75, -0.5, -1.75),
         vec3(0.25, -0.5, -1.75),
     ];
 
-    let rightQuad = [
+    let leftQuad = [
         vec3(-1.0, -1.0, -2.5),
-        vec3(-1.0, 0, -2.5),
+        vec3(- 1.0, -1.0, -3.0),
         vec3(-1.0, 0, -3.0),
-        vec3(- 1.0, -1.0, -3.0)
+        vec3(-1.0, 0, -2.5),
     ];
 
     let texCoords = [
@@ -74,7 +74,7 @@ async function main() {
         vec2(0, 1),
     ]
 
-    let pointLight = vec3(radius * Math.sin(orbitAngle), 2.0, -2.0);
+    let pointLight = vec3(0 + radius * Math.cos(orbitAngle), 2.0, -2 + radius * Math.sin(orbitAngle));
 
 
     let indices = new Uint32Array([
@@ -305,7 +305,9 @@ async function main() {
         // If light is orbiting, update the position
         if (orbiting) {
             orbitAngle += 0.01
-            pointLight = vec3(radius * Math.sin(orbitAngle), 2.0, -2 * Math.cos(orbitAngle))
+            // Recalculate the point light position
+            pointLight = vec3(0 + radius * Math.cos(orbitAngle), 2.0, -2 + radius * Math.sin(orbitAngle))
+            a = d + dot(n, pointLight);
             M_s = mat4(
                 a - pointLight[0] * n[0], -pointLight[0] * n[1], -pointLight[0] * n[2], -pointLight[0] * d,
                 -pointLight[1] * n[0], a - pointLight[1] * n[1], -pointLight[1] * n[2], -pointLight[1] * d,
@@ -321,8 +323,6 @@ async function main() {
             requestAnimationFrame(animate)
         }
 
-        // Update uniform values, i.e. point light pos
-        //device.queue.writeBuffer(uniformBuffer, 0, data)
         render();
     }
 
