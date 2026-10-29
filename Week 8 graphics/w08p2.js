@@ -241,7 +241,8 @@ async function main() {
     data[flatMvp.length + flatPointLight.length] = visibility
 
 
-    const uniformBufferSize = (16 + 4 + 4) // Mat 4 + vec3f + f32
+    // Mat4 (4 rows * 4 columns * 4 bytes per f32) + vec3f (3*4 bytes per f32) + f32
+    const uniformBufferSize = (64 + 12 + 4)
     // Uniform buffer and bind group
     const uniformBuffer = device.createBuffer({
         label: "uniformBuffer",
