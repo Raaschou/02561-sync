@@ -63,7 +63,7 @@ async function main() {
 
 
     // Scene setup
-    const obj_filename = "guru_tutorial_v2.obj";
+    const obj_filename = "../3d_models/guru_tutorial_v2.obj";
     const obj = await readOBJFile(obj_filename, 1.0, true);
 
 
