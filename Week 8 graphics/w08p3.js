@@ -266,11 +266,11 @@ async function main() {
 
     // p is a point in ground plane
 
-    const p = vec3(-2 - epsilon, -1 - epsilon, -1 - epsilon)
+    const p = vec3(-2, -1 - epsilon, -1)
 
     const d = -dot(p, n) // this is equal to 1
 
-    let a = d + dot(n, pointLight) - epsilon;
+    let a = d + dot(n, pointLight);
 
     // Shadow projection matrix
     let M_s = mat4(
