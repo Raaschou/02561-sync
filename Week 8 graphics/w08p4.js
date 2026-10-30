@@ -21,7 +21,18 @@ function createUniformBuffer(device, size) {
     });
 }
 
-function createPipeline(device, wgsl, canvasFormat, posLayout, texLayout, depthCompare) {
+function createPipeline(device, wgsl, canvasFormat, posLayout, texLayout, depthCompare, shadowAlpha) {
+    let shadowBlend = {
+        color: { dstFactor: "zero" },
+        alpha: { dstFactor: "zero" }
+    }
+    // Blend if shadow pipeline
+    if (shadowAlpha) {
+        shadowBlend = {
+            color: { operation: "add", srcFactor: "src-alpha", dstFactor: "one-minus-src-alpha" },
+            alpha: { operation: "add", srcFactor: "one", dstFactor: "one-minus-src-alpha" }
+        }
+    }
     return device.createRenderPipeline({
         label: "render pipeline",
         layout: "auto",
@@ -35,7 +46,10 @@ function createPipeline(device, wgsl, canvasFormat, posLayout, texLayout, depthC
             label: "fragment shader",
             module: wgsl,
             entryPoint: "main_fs",
-            targets: [{ format: canvasFormat }],
+            targets: [{
+                format: canvasFormat,
+                blend: shadowBlend
+            }],
         },
         depthStencil: {
             label: "ds in pipeline",
@@ -76,7 +90,7 @@ async function main() {
     let orbitAngle = 0.0
     const radius = 2.0
     const visibility = 1.0 // default visibility
-    const shadowVisibility = 0.0
+    const shadowVisibility = 0.4
 
     let groundPlane = [
         vec3(-2, -1, -1),
@@ -247,8 +261,8 @@ async function main() {
     });
 
     // Render pipeline
-    const pipeline = createPipeline(device, wgsl, canvasFormat, positionsBufferLayout, textureBufferLayout, "less")
-    const shadowPipeline = createPipeline(device, wgsl, canvasFormat, positionsBufferLayout, textureBufferLayout, "greater")
+    const pipeline = createPipeline(device, wgsl, canvasFormat, positionsBufferLayout, textureBufferLayout, "less", false)
+    const shadowPipeline = createPipeline(device, wgsl, canvasFormat, positionsBufferLayout, textureBufferLayout, "greater", shadowBlend = true)
 
 
     // View setup
