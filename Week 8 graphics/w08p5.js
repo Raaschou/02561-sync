@@ -36,7 +36,7 @@ function createUniformBuffer(device, size) {
     });
 }
 
-function createPipeline(label, device, wgsl, canvasFormat, posLayout, texLayout, compare, passOp, shadowAlpha) {
+function createPipeline(label, device, wgsl, canvasFormat, posLayout, texLayout, normLayout, compare, passOp, shadowAlpha) {
     let shadowBlend = {
         color: { dstFactor: "zero" },
         alpha: { dstFactor: "zero" }
@@ -58,7 +58,7 @@ function createPipeline(label, device, wgsl, canvasFormat, posLayout, texLayout,
             label: "vertex shader",
             module: wgsl,
             entryPoint: "main_vs",
-            buffers: [posLayout, texLayout]
+            buffers: [posLayout, texLayout, normLayout]
         },
         fragment: {
             label: "fragment shader",
@@ -118,7 +118,8 @@ async function main() {
 
     // Variables
     const obj_filename = "../3d_models/teapot.obj";
-    const obj = await readOBJFile(obj_filename, 1.0, true);
+    const obj = await readOBJFile(obj_filename, 0.25, true); // scale by 0.25
+
 
 
     const texSize = 64;
@@ -127,8 +128,14 @@ async function main() {
     const radius = 2.0
     const visibility = 1.0 // default visibility
     const shadowVisibility = 0.6
-    const translateVector = vec3(0, -0.9, -2)
-
+    const translateVector = vec3(0, -0.5, -2)
+    let pointLight = vec3(0 + radius * Math.cos(orbitAngle), 2.0, -2 + radius * Math.sin(orbitAngle))
+    let redColor = new Uint8Array([255, 255, 255, 255])
+    // Get plane texture
+    let planeFilepath = "xamp23.png"
+    const response = await fetch(planeFilepath);
+    const blob = await response.blob();
+    const planeImg = await createImageBitmap(blob, { colorSpaceConversion: "none" });
 
     let groundPlane = [
         vec3(-2, -1, -1),
@@ -136,22 +143,19 @@ async function main() {
         vec3(2, -1, -5),
         vec3(-2, -1, -5),
     ];
-
-    // Unpack teapot variables
-    const teapotPointsScaled = obj.vertices.map(x => x * 0.25) // scale by a quarter
-    const teapotPoints = tranlateVertices(teapotPointsScaled, translateVector) // unpack and translate
-
-    const teapotIndices = obj.indices
-
-
     let texCoords = [
         vec2(0, 0),
         vec2(1, 0),
         vec2(1, 1),
         vec2(0, 1),
     ]
+    // Unpack teapot variables
+    const teapotPointsScaled = obj.vertices // scale by a quarter
+    const teapotPoints = tranlateVertices(teapotPointsScaled, translateVector) // unpack and translate
 
-    let pointLight = vec3(0 + radius * Math.cos(orbitAngle), 2.0, -2 + radius * Math.sin(orbitAngle))
+    const teapotIndices = obj.indices
+
+    const teapotNormals = unpackVec3(obj.normals)
 
 
     let planeIndicies = new Uint32Array([
@@ -161,14 +165,9 @@ async function main() {
 
     const indices = new Uint32Array([...planeIndicies, ...teapotIndices])
 
-    let redColor = new Uint8Array([255, 255, 255, 255])
 
-    // Get plane texture
-    let planeFilepath = "xamp23.png"
-    const response = await fetch(planeFilepath);
-    const blob = await response.blob();
-    const planeImg = await createImageBitmap(blob, { colorSpaceConversion: "none" });
-
+    const planeNormals = [vec3(0, 1, 0), vec3(0, 1, 0), vec3(0, 1, 0), vec3(0, 1, 0)];
+    const normals = [...planeNormals, ...teapotNormals]
     // Scene setup
 
 
@@ -230,6 +229,19 @@ async function main() {
             offset: 0,
             shaderLocation: 2,
         }]
+    }
+
+    // Normals buffer
+    const normalBuffer = device.createBuffer({
+        label: "normal buffer",
+        size: flatten(normals).byteLength,
+        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+    })
+    device.queue.writeBuffer(normalBuffer, 0, flatten(normals))
+
+    const normalBufferLayout = {
+        arrayStride: sizeof["vec3"],
+        attributes: [{ format: "float32x3", offset: 0, shaderLocation: 2 }]
     }
 
     // index buffer
@@ -296,13 +308,13 @@ async function main() {
 
     // Render pipeline
     const pipeline = createPipeline("plane pipeline", device, wgsl, canvasFormat, positionsBufferLayout,
-        textureBufferLayout, "always", "replace", false)
+        textureBufferLayout, normalBufferLayout, "always", "replace", false)
 
     const teapotPipeline = createPipeline("teapot pipeline", device, wgsl, canvasFormat, positionsBufferLayout,
-        textureBufferLayout, "always", "keep", false)
+        textureBufferLayout, normalBufferLayout, "always", "keep", false)
 
     const shadowPipeline = createPipeline("shadow pipeline", device, wgsl, canvasFormat, positionsBufferLayout,
-        textureBufferLayout, "equal", "zero", shadowBlend = true)
+        textureBufferLayout, normalBufferLayout, "equal", "zero", shadowBlend = true)
 
 
     // View setup
@@ -314,13 +326,13 @@ async function main() {
     let mvp_perspective = perspective(90.0, A, 0.1, 100.0)
 
     // Subtract epsilon to avoid z-clipping
-    const epsilon = 0.0001
+    const epsilon = 0.001
     // plane normal, n, defined by assignment
     const n = vec3(0, 1, 0)
 
     // p is a point in ground plane
 
-    const p = vec3(-2, -1 - epsilon, -1)
+    const p = vec3(-2, -1 + epsilon, -1)
 
     const d = -dot(p, n) // this is equal to 1
 
@@ -348,9 +360,12 @@ async function main() {
     let data = new Float32Array(uniformArraySize);
     data.set((flatMvp))
     data.set(flatPointLight, flatMvp.length)
-
     data[flatMvp.length + flatPointLight.length] = visibility
 
+    let teapotData = new Float32Array(uniformArraySize);
+    teapotData.set((flatMvp))
+    teapotData.set(flatPointLight, flatMvp.length)
+    teapotData[flatMvp.length + flatPointLight.length] = visibility - 0.1
 
     let shadowData = new Float32Array(uniformArraySize);
     shadowData.set((flatShadowMvp))
@@ -362,15 +377,17 @@ async function main() {
     const uniformBufferSize = (64 + 16 + 16)
     // Uniform buffer and bind group
     const uniformBuffer = createUniformBuffer(device, uniformBufferSize)
+    const teapotUniformBuffer = createUniformBuffer(device, uniformBufferSize)
     const shadowUniformBuffer = createUniformBuffer(device, uniformBufferSize)
 
 
 
 
     const planeBindGroup = createBindGroup(device, pipeline, myTexture, uniformBuffer)
-
-    const redBindGroup = createBindGroup(device, teapotPipeline, redTexture, uniformBuffer)
     device.queue.writeBuffer(uniformBuffer, 0, data)
+
+    const teapotBindGroup = createBindGroup(device, teapotPipeline, redTexture, teapotUniformBuffer)
+    device.queue.writeBuffer(teapotUniformBuffer, 0, teapotData)
 
     const shadowBindGroup = createBindGroup(device, shadowPipeline, redTexture, shadowUniformBuffer)
     device.queue.writeBuffer(shadowUniformBuffer, 0, shadowData)
@@ -400,10 +417,12 @@ async function main() {
             )
             shadowMvp = mult(mvp_perspective, mult(view, M_s))
             flatShadowMvp = flatten(shadowMvp)
+            flatPointLight = flatten(pointLight)
+
             shadowData.set((flatShadowMvp))
             device.queue.writeBuffer(shadowUniformBuffer, 0, shadowData)
-
-            render()
+            teapotData.set(flatPointLight, 16);
+            device.queue.writeBuffer(teapotUniformBuffer, 0, teapotData);
             requestAnimationFrame(animate)
         }
 
@@ -436,7 +455,7 @@ async function main() {
         pass.setPipeline(pipeline);
         pass.setVertexBuffer(0, positionsBuffer);
         pass.setVertexBuffer(1, textureBuffer);
-        pass.setVertexBuffer(2, redTextureBuffer);
+        pass.setVertexBuffer(2, normalBuffer);
         pass.setIndexBuffer(indexBuffer, 'uint32');
 
         // Draw ground
@@ -445,11 +464,11 @@ async function main() {
         // Then draw shadows on plane
         pass.setPipeline(shadowPipeline)
         pass.setBindGroup(0, shadowBindGroup);
-        pass.drawIndexed(teapotIndices.length, 1, 0, 4)
+        pass.drawIndexed(teapotIndices.length, 1, 6, 4)
         // Lastly draw red quads
         pass.setPipeline(teapotPipeline);
-        pass.setBindGroup(0, redBindGroup);
-        pass.drawIndexed(teapotIndices.length, 1, 0, 4)
+        pass.setBindGroup(0, teapotBindGroup);
+        pass.drawIndexed(teapotIndices.length, 1, 6, 4)
 
 
 
