@@ -1,4 +1,19 @@
 window.onload = function () { main(); }
+// Function for converting obj float array to array of float array
+function unpackVec3(data) {
+    const result = [];
+
+    for (let i = 0; i < data.length; i += 4) {
+        result.push(vec3(
+            data[i],
+            data[i + 1],
+            data[i + 2]
+        ));
+    }
+
+    return result;
+}
+
 
 // Helper function for creating bindGroups
 function createBindGroup(device, pipeline, texture, uniformBuffer) {
@@ -32,6 +47,8 @@ function createPipeline(device, wgsl, canvasFormat, posLayout, texLayout, depthC
             color: { operation: "add", srcFactor: "src-alpha", dstFactor: "one-minus-src-alpha" },
             alpha: { operation: "add", srcFactor: "one", dstFactor: "one-minus-src-alpha" }
         }
+        //let stencilFormat = shadowAlpha ? "depth24plus-stencil8" : "depth24plus"
+
     }
     return device.createRenderPipeline({
         label: "render pipeline",
@@ -55,7 +72,7 @@ function createPipeline(device, wgsl, canvasFormat, posLayout, texLayout, depthC
             label: "ds in pipeline",
             depthWriteEnabled: true,
             depthCompare: depthCompare,
-            format: 'depth24plus'
+            format: "depth24plus"
         },
         primitive: {
             label: "primitive in pipeline",
@@ -65,7 +82,19 @@ function createPipeline(device, wgsl, canvasFormat, posLayout, texLayout, depthC
     })
 }
 
+// modified unpackVec3 to tranlate by the vector 
+function tranlateVertices(vertices, vector) {
+    const result = []
+    for (let i = 0; i < vertices.length; i += 4) {
+        result.push(vec3(
 
+            vertices[i] + vector[0],
+            vertices[i + 1] + vector[1],
+            vertices[i + 2] + vector[2]
+        ));
+    }
+    return result
+}
 async function main() {
 
     // Get the context and devices
@@ -85,12 +114,18 @@ async function main() {
 
 
     // Variables
+    const obj_filename = "../3d_models/teapot.obj";
+    const obj = await readOBJFile(obj_filename, 1.0, true);
+
+
     const texSize = 64;
     let orbiting = false;
     let orbitAngle = 0.0
     const radius = 2.0
     const visibility = 1.0 // default visibility
     const shadowVisibility = 0.6
+    const translateVector = vec3(0, -0.9, -2)
+
 
     let groundPlane = [
         vec3(-2, -1, -1),
@@ -99,19 +134,12 @@ async function main() {
         vec3(-2, -1, -5),
     ];
 
-    let rightQuad = [
-        vec3(0.25, -0.5, -1.25),
-        vec3(0.75, -0.5, -1.25),
-        vec3(0.75, -0.5, -1.75),
-        vec3(0.25, -0.5, -1.75),
-    ];
+    // Unpack teapot variables
+    const teapotPointsScaled = obj.vertices.map(x => x * 0.25) // scale by a quarter
+    const teapotPoints = tranlateVertices(teapotPointsScaled, translateVector) // unpack and translate
 
-    let leftQuad = [
-        vec3(-1.0, -1.0, -2.5),
-        vec3(- 1.0, -1.0, -3.0),
-        vec3(-1.0, 0, -3.0),
-        vec3(-1.0, 0, -2.5),
-    ];
+    const teapotIndices = obj.indices
+
 
     let texCoords = [
         vec2(0, 0),
@@ -123,15 +151,16 @@ async function main() {
     let pointLight = vec3(0 + radius * Math.cos(orbitAngle), 2.0, -2 + radius * Math.sin(orbitAngle))
 
 
-
-    let indices = new Uint32Array([
+    let planeIndicies = new Uint32Array([
         0, 1, 2,
         0, 2, 3,
     ]);
 
-    let redColor = new Uint8Array([255, 0, 0, 255])
+    const indices = new Uint32Array([...planeIndicies, ...teapotIndices])
 
-    // Get normal map
+    let redColor = new Uint8Array([255, 255, 255, 255])
+
+    // Get plane texture
     let planeFilepath = "xamp23.png"
     const response = await fetch(planeFilepath);
     const blob = await response.blob();
@@ -140,7 +169,9 @@ async function main() {
     // Scene setup
 
 
-    let positions = [...groundPlane, ...leftQuad, ...rightQuad]
+    let positions = [...groundPlane, ...teapotPoints]
+
+
     // groundPlane/postions buffer
     const positionsBuffer = device.createBuffer({
         label: "positions buffer",
@@ -262,6 +293,7 @@ async function main() {
 
     // Render pipeline
     const pipeline = createPipeline(device, wgsl, canvasFormat, positionsBufferLayout, textureBufferLayout, "less", false)
+    const teapotPipeline = createPipeline(device, wgsl, canvasFormat, positionsBufferLayout, textureBufferLayout, "less", false)
     const shadowPipeline = createPipeline(device, wgsl, canvasFormat, positionsBufferLayout, textureBufferLayout, "greater", shadowBlend = true)
 
 
@@ -329,7 +361,7 @@ async function main() {
 
     const planeBindGroup = createBindGroup(device, pipeline, myTexture, uniformBuffer)
 
-    const redBindGroup = createBindGroup(device, pipeline, redTexture, uniformBuffer)
+    const redBindGroup = createBindGroup(device, teapotPipeline, redTexture, uniformBuffer)
     device.queue.writeBuffer(uniformBuffer, 0, data)
 
     const shadowBindGroup = createBindGroup(device, shadowPipeline, redTexture, shadowUniformBuffer)
@@ -370,7 +402,6 @@ async function main() {
         render();
     }
 
-
     function render() {
         const encoder = device.createCommandEncoder();
         const pass = encoder.beginRenderPass({
@@ -401,13 +432,12 @@ async function main() {
         // Then draw shadows on plane
         pass.setPipeline(shadowPipeline)
         pass.setBindGroup(0, shadowBindGroup);
-        pass.drawIndexed(6, 1, 0, 4);
-        pass.drawIndexed(6, 1, 0, 8);
+        pass.drawIndexed(teapotIndices.length, 1, 0, 4)
         // Lastly draw red quads
-        pass.setPipeline(pipeline);
+        pass.setPipeline(teapotPipeline);
         pass.setBindGroup(0, redBindGroup);
-        pass.drawIndexed(6, 1, 0, 4);
-        pass.drawIndexed(6, 1, 0, 8);
+        pass.drawIndexed(teapotIndices.length, 1, 0, 4)
+
 
 
 
