@@ -36,7 +36,7 @@ function createUniformBuffer(device, size) {
     });
 }
 
-function createPipeline(device, wgsl, canvasFormat, posLayout, texLayout, depthCompare, shadowAlpha) {
+function createPipeline(label, device, wgsl, canvasFormat, posLayout, texLayout, compare, passOp, shadowAlpha) {
     let shadowBlend = {
         color: { dstFactor: "zero" },
         alpha: { dstFactor: "zero" }
@@ -48,10 +48,11 @@ function createPipeline(device, wgsl, canvasFormat, posLayout, texLayout, depthC
             alpha: { operation: "add", srcFactor: "one", dstFactor: "one-minus-src-alpha" }
         }
         //let stencilFormat = shadowAlpha ? "depth24plus-stencil8" : "depth24plus"
-
     }
+
+
     return device.createRenderPipeline({
-        label: "render pipeline",
+        label: label,
         layout: "auto",
         vertex: {
             label: "vertex shader",
@@ -71,8 +72,10 @@ function createPipeline(device, wgsl, canvasFormat, posLayout, texLayout, depthC
         depthStencil: {
             label: "ds in pipeline",
             depthWriteEnabled: true,
-            depthCompare: depthCompare,
-            format: "depth24plus"
+            depthCompare: "less",
+            format: "depth24plus-stencil8",
+            stencilFront: { compare: compare, passOp: passOp },
+            stencilBack: { compare: compare, passOp: passOp }
         },
         primitive: {
             label: "primitive in pipeline",
@@ -286,15 +289,20 @@ async function main() {
     // Create
     const depthTexture = device.createTexture({
         size: { width: canvas.width, height: canvas.height },
-        format: 'depth24plus',
+        format: 'depth24plus-stencil8',
         sampleCount: 1,
         usage: GPUTextureUsage.RENDER_ATTACHMENT,
     });
 
     // Render pipeline
-    const pipeline = createPipeline(device, wgsl, canvasFormat, positionsBufferLayout, textureBufferLayout, "less", false)
-    const teapotPipeline = createPipeline(device, wgsl, canvasFormat, positionsBufferLayout, textureBufferLayout, "less", false)
-    const shadowPipeline = createPipeline(device, wgsl, canvasFormat, positionsBufferLayout, textureBufferLayout, "greater", shadowBlend = true)
+    const pipeline = createPipeline("plane pipeline", device, wgsl, canvasFormat, positionsBufferLayout,
+        textureBufferLayout, "always", "replace", false)
+
+    const teapotPipeline = createPipeline("teapot pipeline", device, wgsl, canvasFormat, positionsBufferLayout,
+        textureBufferLayout, "always", "keep", false)
+
+    const shadowPipeline = createPipeline("shadow pipeline", device, wgsl, canvasFormat, positionsBufferLayout,
+        textureBufferLayout, "equal", "zero", shadowBlend = true)
 
 
     // View setup
@@ -417,8 +425,13 @@ async function main() {
                 depthLoadOp: "clear",
                 depthClearValue: 1.0,
                 depthStoreOp: "store",
+                stencilClearValue: 0,
+                stencilLoadOp: "clear",
+                stencilStoreOp: "store",
+                stencilReadOnly: false,
             }
         })
+        pass.setStencilReference(1)
 
         pass.setPipeline(pipeline);
         pass.setVertexBuffer(0, positionsBuffer);
