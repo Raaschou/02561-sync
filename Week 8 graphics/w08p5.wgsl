@@ -19,7 +19,11 @@ var myTexture: texture_2d<f32>;
 @group(0) @binding(2)
 var<uniform> uniforms: Uniforms;
 
-const k_d = vec3f(0.72, 0.72, 0.72);
+const k_d: vec3f = vec3f(0.72, 0.72, 0.72); // k_d as defined by teapot.mtl
+const L_e: f32 = 0.6;
+const L_a: f32 = 0.4;
+const shine: f32 = 25.0;
+
 const specularColor: vec3f = vec3f(1.0, 1.0, 1.0);
 
 @vertex
@@ -50,9 +54,9 @@ fn main_fs(in: VSOut) -> @location(0) vec4f {
         let w_r = normalize(2.0 * (dot(w_i, normal)) * normal - w_i);
         let w_o = normalize(-(in.viewPos));
 
-        let L_phong = specularColor * 0.5 * pow(max(dot(w_r, w_o), 0), 1.5);
-        let L_rd = k_d * rgb * 0.2 * max(cos_theta, 0);
-        let L_ra = k_d * rgb * 0.8;
+        let L_phong = specularColor * L_e * pow(max(dot(w_r, w_o), 0), shine);
+        let L_rd = k_d * rgb * L_e * max(cos_theta, 0);
+        let L_ra = k_d * rgb * L_a;
         L_o = L_rd + L_phong + L_ra;
     }
     // Mult by visibility to create shadow
