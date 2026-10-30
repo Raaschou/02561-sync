@@ -33,7 +33,8 @@ fn main_fs(fsInput: VSOut) -> @location(0) vec4f {
     let color = textureSample(myTexture, mySampler, fsInput.texCoord);
     // Mult by visibility to create shadow
     var shadowAlphaMultiplier = 1.0;
-    if uniforms.visibility == 0.4 {
+    // use != 1.0 so alpha is changeable in js code
+    if uniforms.visibility != 1.0 {
         shadowAlphaMultiplier = 0.0;
     }
     return vec4f(color.rgb * shadowAlphaMultiplier, color.a * uniforms.visibility);

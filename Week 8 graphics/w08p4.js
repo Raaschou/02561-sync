@@ -90,7 +90,7 @@ async function main() {
     let orbitAngle = 0.0
     const radius = 2.0
     const visibility = 1.0 // default visibility
-    const shadowVisibility = 0.4
+    const shadowVisibility = 0.6
 
     let groundPlane = [
         vec3(-2, -1, -1),
