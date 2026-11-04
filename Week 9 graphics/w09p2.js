@@ -1,0 +1,567 @@
+window.onload = function () { main(); }
+// Function for converting obj float array to array of float array
+function unpackVec3(data) {
+    const result = [];
+
+    for (let i = 0; i < data.length; i += 4) {
+        result.push(vec3(
+            data[i],
+            data[i + 1],
+            data[i + 2]
+        ));
+    }
+
+    return result;
+}
+
+
+// Helper function for creating bindGroups
+function createBindGroup(device, pipeline, texture, uniformBuffer) {
+    return device.createBindGroup({
+        label: "plane bind group",
+        layout: pipeline.getBindGroupLayout(0),
+        entries: [
+            { binding: 0, resource: texture.sampler },
+            { binding: 1, resource: texture.createView() },
+            { binding: 2, resource: { buffer: uniformBuffer } },
+        ],
+    })
+}
+
+function createUniformBuffer(device, size) {
+    return device.createBuffer({
+        label: "uniformBuffer",
+        size: size,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
+}
+
+function createPipeline(label, device, wgsl, canvasFormat, posLayout, texLayout, normLayout, compare, passOp, shadowAlpha) {
+    let shadowBlend = {
+        color: { dstFactor: "zero" },
+        alpha: { dstFactor: "zero" }
+    }
+    // Blend if shadow pipeline
+    if (shadowAlpha) {
+        shadowBlend = {
+            color: { operation: "add", srcFactor: "src-alpha", dstFactor: "one-minus-src-alpha" },
+            alpha: { operation: "add", srcFactor: "one", dstFactor: "one-minus-src-alpha" }
+        }
+        //let stencilFormat = shadowAlpha ? "depth24plus-stencil8" : "depth24plus"
+    }
+
+
+    return device.createRenderPipeline({
+        label: label,
+        layout: "auto",
+        vertex: {
+            label: "vertex shader",
+            module: wgsl,
+            entryPoint: "main_vs",
+            buffers: [posLayout, texLayout, normLayout]
+        },
+        fragment: {
+            label: "fragment shader",
+            module: wgsl,
+            entryPoint: "main_fs",
+            targets: [{
+                format: canvasFormat,
+                blend: shadowBlend
+            }],
+        },
+        depthStencil: {
+            label: "ds in pipeline",
+            depthWriteEnabled: true,
+            depthCompare: "less",
+            format: "depth24plus-stencil8",
+            stencilFront: { compare: compare, passOp: passOp },
+            stencilBack: { compare: compare, passOp: passOp }
+        },
+        primitive: {
+            label: "primitive in pipeline",
+            topology: 'triangle-list',
+            frontFace: "ccw",
+        },
+    })
+}
+
+// modified unpackVec3 to tranlate by the vector 
+function tranlateVertices(vertices, vector) {
+    const result = []
+    for (let i = 0; i < vertices.length; i += 4) {
+        result.push(vec3(
+
+            vertices[i] + vector[0],
+            vertices[i + 1] + vector[1],
+            vertices[i + 2] + vector[2]
+        ));
+    }
+    return result
+}
+
+
+async function main() {
+
+    // Get the context and devices
+    const canvas = document.querySelector("canvas");
+
+    const adapter = await navigator.gpu.requestAdapter();
+
+    const device = await adapter.requestDevice();
+
+    const context = canvas.getContext("webgpu");
+
+    const canvasFormat = navigator.gpu.getPreferredCanvasFormat();
+
+    context.configure({ device: device, format: canvasFormat });
+
+    const orbitButton = document.getElementById("orbit");
+    const moveTeapotButton = document.getElementById("moveTeapot");
+
+    // Variables
+    const obj_filename = "../3d_models/teapot.obj";
+    const obj = await readOBJFile(obj_filename, 0.25, true); // scale by 0.25
+
+
+
+    const texSize = 64;
+    let orbiting = false;
+    let orbitAngle = 0.0
+
+    let moving = false;
+    let heightAngle = 0.0;
+
+    let animating = false;
+    function startAnimation() {
+        if (!animating) {
+            animating = true;
+            requestAnimationFrame(animate);
+        }
+    }
+
+    const radius = 2.0
+    const visibility = 1.0 // default visibility
+    const shadowVisibility = 0.6
+    const translateVector = vec3(0, -1, -3)
+
+    let pointLight = vec3(0 + radius * Math.cos(orbitAngle), 2.0, -2 + radius * Math.sin(orbitAngle))
+    let redColor = new Uint8Array([255, 255, 255, 255])
+    // Get plane texture
+    let planeFilepath = "../textures/xamp23.png"
+    const response = await fetch(planeFilepath);
+    const blob = await response.blob();
+    const planeImg = await createImageBitmap(blob, { colorSpaceConversion: "none" });
+
+    const groundPlane = [
+        vec3(-2, -1, -1),
+        vec3(2, -1, -1),
+        vec3(2, -1, -5),
+        vec3(-2, -1, -5),
+    ];
+    let texCoords = [
+        vec2(0, 0),
+        vec2(1, 0),
+        vec2(1, 1),
+        vec2(0, 1),
+    ]
+    // Unpack teapot variables
+    const teapotPointsScaled = obj.vertices // scale by a quarter
+    const teapotPoints = tranlateVertices(teapotPointsScaled, translateVector) // unpack and translate
+
+    const teapotIndices = obj.indices
+
+    const teapotNormals = unpackVec3(obj.normals)
+
+
+    let planeIndicies = new Uint32Array([
+        0, 1, 2,
+        0, 2, 3,
+    ]);
+
+    const indices = new Uint32Array([...planeIndicies, ...teapotIndices])
+
+
+    const planeNormals = [vec3(0, 1, 0), vec3(0, 1, 0), vec3(0, 1, 0), vec3(0, 1, 0)];
+    const normals = [...planeNormals, ...teapotNormals]
+    // Scene setup
+
+
+    let positions = [...groundPlane, ...teapotPoints]
+
+
+    // groundPlane/postions buffer
+    const planePosBuffer = device.createBuffer({
+        label: "positions buffer",
+        size: flatten(groundPlane).byteLength,
+        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+    });
+
+    device.queue.writeBuffer(planePosBuffer, 0, flatten(groundPlane))
+
+    const planePosBufferLayout = {
+        label: "pos buffer layout",
+        arrayStride: sizeof["vec3"],
+        attributes: [{
+            format: "float32x3",
+            offset: 0,
+            shaderLocation: 0,
+        }]
+    }
+    const teapotPointsBuffer = device.createBuffer({
+        label: "teapotPoints buffer",
+        size: flatten(teapotPoints).byteLength,
+        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+    });
+
+    device.queue.writeBuffer(teapotPointsBuffer, 0, flatten(teapotPoints))
+
+    const teapotPointsBufferLayout = {
+        label: "teapot buffer layout",
+        arrayStride: sizeof["vec3"],
+        attributes: [{
+            format: "float32x3",
+            offset: 0,
+            shaderLocation: 0,
+        }]
+    }
+
+    // Texture coordinates buffer
+
+    const textureBuffer = device.createBuffer({
+        label: "texture buffer",
+        size: flatten(texCoords).byteLength,
+        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+    })
+
+    device.queue.writeBuffer(textureBuffer, 0, flatten(texCoords))
+
+    const textureBufferLayout = {
+        label: "texture buffer layout",
+        arrayStride: sizeof["vec2"],
+        attributes: [{
+            format: "float32x2",
+            offset: 0,
+            shaderLocation: 1,
+        }]
+    }
+
+    const redTextureBuffer = device.createBuffer({
+        label: "redTexture buffer",
+        size: flatten(redColor).byteLength,
+        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+    })
+
+    device.queue.writeBuffer(redTextureBuffer, 0, flatten(redColor))
+
+    const redTextureBufferLayout = {
+        label: "redTexture buffer layout",
+        arrayStride: sizeof["vec3"],
+        attributes: [{
+            format: "float32x3",
+            offset: 0,
+            shaderLocation: 1,
+        }]
+    }
+
+    // Normals buffer
+    const planeNormalBuffer = device.createBuffer({
+        label: "planeNormal buffer",
+        size: flatten(planeNormals).byteLength,
+        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+    })
+    device.queue.writeBuffer(planeNormalBuffer, 0, flatten(planeNormals))
+
+    const planeNormalBufferLayout = {
+        arrayStride: sizeof["vec3"],
+        attributes: [{ format: "float32x3", offset: 0, shaderLocation: 2 }]
+    }
+
+    const teapotNormalBuffer = device.createBuffer({
+        label: "teapotNormal buffer",
+        size: flatten(teapotNormals).byteLength,
+        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+    })
+    device.queue.writeBuffer(teapotNormalBuffer, 0, flatten(teapotNormals))
+
+    const teapotNormalBufferLayout = {
+        arrayStride: sizeof["vec3"],
+        attributes: [{ format: "float32x3", offset: 0, shaderLocation: 2 }]
+    }
+
+    // index buffer
+    const indexBuffer = device.createBuffer({
+        label: "index buffer",
+        size: flatten(indices).byteLength,
+        usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
+    })
+
+    device.queue.writeBuffer(indexBuffer, 0, indices)
+
+
+    const myTexture = device.createTexture({
+        label: "plane texture",
+        size: [planeImg.width, planeImg.height, 1],
+        format: "rgba8unorm",
+        usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT
+    });
+
+    device.queue.copyExternalImageToTexture(
+        { source: planeImg, flipY: false },
+        { texture: myTexture },
+        { width: planeImg.width, height: planeImg.height },
+    );
+
+    const redTexture = device.createTexture({
+        label: "Red texture",
+        size: [flatten(redColor).byteLength],
+        format: "rgba8unorm",
+        usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT
+    })
+
+    device.queue.writeTexture(
+        { texture: redTexture },
+        redColor,
+        { bytesPerRow: 4 },
+        { width: 1, height: 1, depthOrArrayLayers: 1 }
+    )
+
+
+    // Only providing label for sampler, to appease the binding code
+    // as mipmapping and so on is not needed here
+    myTexture.sampler = device.createSampler({
+        label: "Texture sampler",
+
+    });
+
+    redTexture.sampler = device.createSampler({
+        label: "Texture sampler",
+    });
+
+    // Import wgsl file
+    const wgslfile = document.getElementById("wgsl").src;
+    const wgslcode = await fetch(wgslfile, { cache: "reload" }).then(r => r.text());
+    const wgsl = device.createShaderModule({ code: wgslcode });
+
+    // Create
+    const depthTexture = device.createTexture({
+        size: { width: canvas.width, height: canvas.height },
+        format: 'depth24plus-stencil8',
+        sampleCount: 1,
+        usage: GPUTextureUsage.RENDER_ATTACHMENT,
+    });
+
+    // Render pipeline
+    const pipeline = createPipeline("plane pipeline", device, wgsl, canvasFormat, planePosBufferLayout,
+        textureBufferLayout, planeNormalBufferLayout, "always", "replace", false)
+
+    const teapotPipeline = createPipeline("teapot pipeline", device, wgsl, canvasFormat, teapotPointsBufferLayout,
+        textureBufferLayout, teapotNormalBufferLayout, "always", "keep", false)
+
+    const shadowPipeline = createPipeline("shadow pipeline", device, wgsl, canvasFormat, teapotPointsBufferLayout,
+        textureBufferLayout, teapotNormalBufferLayout, "equal", "zero", shadowBlend = true)
+
+
+    // View setup
+    const eye = vec3(0.0, 0.0, 0.0)
+    const lookat = vec3(0.0, 0.0, 0.0)
+    const up = vec3(0.0, 1.0, 0.0)
+
+    const A = canvas.width / canvas.height
+    let mvp_perspective = perspective(90.0, A, 0.1, 100.0)
+
+    // Subtract epsilon to avoid z-clipping
+    const epsilon = 0.001
+    // plane normal, n, defined by assignment
+    const n = vec3(0, 1, 0)
+
+    // p is a point in ground plane
+
+    const p = vec3(-2, -1 + epsilon, -1)
+
+    const d = -dot(p, n) // this is equal to 1
+
+    let a = d + dot(n, pointLight) - epsilon;
+
+    // Shadow projection matrix
+    let M_s = mat4(
+        a - pointLight[0] * n[0], -pointLight[0] * n[1], -pointLight[0] * n[2], -pointLight[0] * d,
+        -pointLight[1] * n[0], a - pointLight[1] * n[1], -pointLight[1] * n[2], -pointLight[1] * d,
+        -pointLight[2] * n[0], -pointLight[2] * n[1], a - pointLight[2] * n[2], -pointLight[2] * d,
+        -n[0], -n[1], -n[2], a - d
+
+    )
+
+    const view = lookAt(eye, lookat, up)
+    const mvp = mult(mvp_perspective, view)
+    const flatMvp = flatten(mvp);
+    let modelMatrix = mat4();
+    let flatModelMatix = flatten(modelMatrix)
+    let flatPointLight = flatten(pointLight)
+
+    let shadowMvp = mult(mvp_perspective, mult(view, M_s))
+    let flatShadowMvp = flatten(shadowMvp)
+
+    let uniformArraySize = (flatMvp.length + flatModelMatix.length + pointLight.length + 1)
+
+    let data = new Float32Array(uniformArraySize);
+    data.set((flatMvp))
+    data.set(flatModelMatix, flatMvp.length)
+    data.set(flatPointLight, flatModelMatix.length + flatMvp.length)
+    data[flatMvp.length + flatModelMatix.length + flatPointLight.length] = visibility
+
+    let teapotData = new Float32Array(uniformArraySize);
+    teapotData.set((flatMvp))
+    teapotData.set(flatModelMatix, flatMvp.length)
+    teapotData.set(flatPointLight, flatMvp.length + flatModelMatix.length)
+    teapotData[flatMvp.length + flatModelMatix.length + flatPointLight.length] = visibility - 0.1
+
+    let shadowData = new Float32Array(uniformArraySize);
+    shadowData.set((flatShadowMvp))
+    shadowData.set(flatModelMatix, flatMvp.length)
+
+    shadowData.set(flatPointLight, flatMvp.length + flatModelMatix.length)
+    shadowData[flatMvp.length + flatModelMatix.length + flatPointLight.length] = shadowVisibility
+
+
+    // Mat 4(4 rows *4 cols*4 bytes per f32) * 2 + vec3f(3*4 bytes per f32) + f32
+    const uniformBufferSize = (64 * 2 + 16 + 4)
+    // Uniform buffer and bind group
+    const uniformBuffer = createUniformBuffer(device, uniformBufferSize)
+    const teapotUniformBuffer = createUniformBuffer(device, uniformBufferSize)
+    const shadowUniformBuffer = createUniformBuffer(device, uniformBufferSize)
+
+
+
+
+    const planeBindGroup = createBindGroup(device, pipeline, myTexture, uniformBuffer)
+    device.queue.writeBuffer(uniformBuffer, 0, data)
+
+    const teapotBindGroup = createBindGroup(device, teapotPipeline, redTexture, teapotUniformBuffer)
+    device.queue.writeBuffer(teapotUniformBuffer, 0, teapotData)
+
+    const shadowBindGroup = createBindGroup(device, shadowPipeline, redTexture, shadowUniformBuffer)
+    device.queue.writeBuffer(shadowUniformBuffer, 0, shadowData)
+
+
+
+
+    orbitButton.addEventListener("click", function () {
+        orbiting = !orbiting;
+        // Multiple animation frame request speeds up animation
+        startAnimation()
+    });
+
+    moveTeapotButton.addEventListener("click", function () {
+        moving = !moving;
+        startAnimation()
+    });
+
+    render();
+    let movingModelMatrix = mat4()
+
+    function animate() {
+        // If light is orbiting, update the position
+        if (moving) {
+            heightAngle += 0.02;
+            // Modified sine wave which is in the interval [0,0.5]
+            let height = 0.25 * Math.sin(heightAngle) + 0.25;
+            movingModelMatrix[1][3] = height
+
+            teapotData.set(flatten(movingModelMatrix), flatMvp.length);
+
+            shadowData.set(flatten(movingModelMatrix), flatMvp.length)
+            device.queue.writeBuffer(teapotUniformBuffer, 0, teapotData);
+            device.queue.writeBuffer(shadowUniformBuffer, 0, shadowData);
+
+        }
+
+        if (orbiting) {
+            orbitAngle += 0.01
+            // Recalculate the point light position
+            pointLight = vec3(0 + radius * Math.cos(orbitAngle), 2.0, -2 + radius * Math.sin(orbitAngle))
+            a = d + dot(n, pointLight) - epsilon;
+            M_s = mat4(
+                a - pointLight[0] * n[0], -pointLight[0] * n[1], -pointLight[0] * n[2], -pointLight[0] * d,
+                -pointLight[1] * n[0], a - pointLight[1] * n[1], -pointLight[1] * n[2], -pointLight[1] * d,
+                -pointLight[2] * n[0], -pointLight[2] * n[1], a - pointLight[2] * n[2], -pointLight[2] * d,
+                -n[0], -n[1], -n[2], a - d
+            )
+            // mult with model to update shadow size
+            shadowMvp = mult(mvp_perspective, mult(view, mult(M_s, movingModelMatrix)))
+            flatShadowMvp = flatten(shadowMvp)
+            flatPointLight = flatten(pointLight)
+            shadowData.set((flatShadowMvp))
+            teapotData.set(flatPointLight, 32);
+            //shadowData.set(flatPointLight, 32);
+
+            device.queue.writeBuffer(shadowUniformBuffer, 0, shadowData)
+            device.queue.writeBuffer(teapotUniformBuffer, 0, teapotData);
+
+
+        }
+        // Check to stop multiple calls of requestAnimationFrame(animate) speeding up animation
+        if (moving || orbiting) {
+            requestAnimationFrame(animate);
+        } else {
+            animating = false;
+        }
+        render();
+    }
+
+    function render() {
+        const encoder = device.createCommandEncoder();
+        const pass = encoder.beginRenderPass({
+            label: "pass encoder",
+            colorAttachments: [{
+                view: context.getCurrentTexture().createView(),
+                loadOp: "clear",
+                clearValue: [0.3921, 0.5843, 0.9294, 1.0],
+                storeOp: "store",
+            }],
+            depthStencilAttachment: {
+                view: depthTexture.createView(),
+                depthLoadOp: "clear",
+                depthClearValue: 1.0,
+                depthStoreOp: "store",
+                stencilClearValue: 0,
+                stencilLoadOp: "clear",
+                stencilStoreOp: "store",
+                stencilReadOnly: false,
+            }
+        })
+        pass.setStencilReference(1)
+
+        pass.setPipeline(pipeline);
+        pass.setVertexBuffer(0, planePosBuffer);
+        pass.setVertexBuffer(1, textureBuffer);
+        pass.setVertexBuffer(2, planeNormalBuffer);
+
+        pass.setIndexBuffer(indexBuffer, 'uint32');
+
+        // Draw ground
+        pass.setBindGroup(0, planeBindGroup);
+
+
+        pass.drawIndexed(6, 1, 0, 0);
+        pass.setVertexBuffer(0, teapotPointsBuffer);
+        pass.setVertexBuffer(1, textureBuffer);
+
+        pass.setVertexBuffer(2, teapotNormalBuffer);
+
+        // Then draw shadows on plane
+        pass.setPipeline(shadowPipeline)
+        pass.setBindGroup(0, shadowBindGroup);
+        pass.drawIndexed(teapotIndices.length, 1, 0, 0)
+        // Lastly draw red quads
+        pass.setPipeline(teapotPipeline);
+        pass.setBindGroup(0, teapotBindGroup);
+        pass.drawIndexed(teapotIndices.length, 1, 0, 0)
+
+
+
+
+        pass.end()
+        device.queue.submit([encoder.finish()]);
+
+    }
+}
