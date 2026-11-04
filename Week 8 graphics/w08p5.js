@@ -132,7 +132,7 @@ async function main() {
     let pointLight = vec3(0 + radius * Math.cos(orbitAngle), 2.0, -2 + radius * Math.sin(orbitAngle))
     let redColor = new Uint8Array([255, 255, 255, 255])
     // Get plane texture
-    let planeFilepath = "xamp23.png"
+    let planeFilepath = "../textures/xamp23.png"
     const response = await fetch(planeFilepath);
     const blob = await response.blob();
     const planeImg = await createImageBitmap(blob, { colorSpaceConversion: "none" });

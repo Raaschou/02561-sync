@@ -118,7 +118,7 @@ async function main() {
     let redColor = new Uint8Array([255, 0, 0, 255])
 
     // Get texture
-    let planeFilepath = "xamp23.png"
+    let planeFilepath = "../textures/xamp23.png"
     const response = await fetch(planeFilepath);
     const blob = await response.blob();
     const planeImg = await createImageBitmap(blob, { colorSpaceConversion: "none" });
