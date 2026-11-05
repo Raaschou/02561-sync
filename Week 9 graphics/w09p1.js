@@ -119,7 +119,7 @@ async function main() {
     const moveTeapotButton = document.getElementById("moveTeapot");
 
     // Variables
-    const obj_filename = "../3d_models/teapot.obj";
+    const obj_filename = "../3d_models/utah_teapot.obj";
     const obj = await readOBJFile(obj_filename, 0.25, true); // scale by 0.25
 
 

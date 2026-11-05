@@ -119,7 +119,7 @@ async function main() {
     const moveTeapotButton = document.getElementById("moveTeapot");
 
     // Variables
-    const obj_filename = "../3d_models/teapot.obj";
+    const obj_filename = "../3d_models/utah_teapot.obj";
     const obj = await readOBJFile(obj_filename, 0.25, true); // scale by 0.25
 
 
@@ -357,6 +357,17 @@ async function main() {
         textureBufferLayout, teapotNormalBufferLayout, "equal", "zero", shadowBlend = true)
 
 
+    // Shadow mapping 
+    const shadowTextureSize = 1024; // 32 * 32
+
+    const shadowTexture = device.createTexture({
+        size: [shadowTextureSize, shadowTextureSize, 1],
+        usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+        format: 'rgba32float',
+    });
+    const shadowTextureView = shadowTexture.createView();
+
+
     // View setup
     const eye = vec3(0.0, 0.0, 0.0)
     const lookat = vec3(0.0, 0.0, 0.0)
@@ -394,7 +405,11 @@ async function main() {
     let flatModelMatix = flatten(modelMatrix)
     let flatPointLight = flatten(pointLight)
 
-    // let lightView = lookAt(pointLight)
+    let lightView = lookAt(pointLight, lookat, up)
+    let lightPerspective = perspective(90.0, 1, 0.1, 100.0)
+
+    let lightMvp = mult(lightPerspective, mult(lightView, M_s))
+
     let shadowMvp = mult(mvp_perspective, mult(view, M_s))
     let flatShadowMvp = flatten(shadowMvp)
 
@@ -507,6 +522,16 @@ async function main() {
 
     function render() {
         const encoder = device.createCommandEncoder();
+        const shadowPass = encoder.beginRenderPass({
+            colorAttachments: [{
+                view: shadowTextureView,
+                depthClearValue: 1.0,
+                loadOp: "clear",
+                storeOp: 'store',
+            }],
+        })
+        shadowPass.end()
+
         const pass = encoder.beginRenderPass({
             label: "pass encoder",
             colorAttachments: [{
@@ -539,20 +564,21 @@ async function main() {
         pass.setBindGroup(0, planeBindGroup);
 
 
-        pass.drawIndexed(6, 1, 0, 0);
+        pass.drawIndexed(planeIndicies.length, 1, 0, 0);
+
         pass.setVertexBuffer(0, teapotPointsBuffer);
-        pass.setVertexBuffer(1, textureBuffer);
+        pass.setVertexBuffer(1, redTextureBuffer);
 
         pass.setVertexBuffer(2, teapotNormalBuffer);
 
         // Then draw shadows on plane
         pass.setPipeline(shadowPipeline)
         pass.setBindGroup(0, shadowBindGroup);
-        pass.drawIndexed(teapotIndices.length, 1, 0, 0)
-        // Lastly draw red quads
+        pass.drawIndexed(teapotIndices.length, 1, planeIndicies.length, 0)
+        // Lastly draw teapot
         pass.setPipeline(teapotPipeline);
         pass.setBindGroup(0, teapotBindGroup);
-        pass.drawIndexed(teapotIndices.length, 1, 0, 0)
+        pass.drawIndexed(teapotIndices.length, 1, planeIndicies.length, 0)
 
 
 
