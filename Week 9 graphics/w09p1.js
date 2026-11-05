@@ -370,7 +370,7 @@ async function main() {
     let mvp_perspective = perspective(90.0, A, 0.1, 100.0)
 
     // Subtract epsilon to avoid z-clipping
-    const epsilon = 0.001
+    const epsilon = 0.01
     // plane normal, n, defined by assignment
     const n = vec3(0, 1, 0)
 
@@ -462,7 +462,7 @@ async function main() {
     function animate() {
         // If light is orbiting, update the position
         if (moving) {
-            heightAngle += 0.02;
+            heightAngle += 0.005;
             // Modified sine wave which is in the interval [0,0.5]
             let height = 0.25 * Math.sin(heightAngle) + 0.25;
             movingModelMatrix[1][3] = height
