@@ -36,7 +36,7 @@ function createUniformBuffer(device, size) {
     });
 }
 
-function createPipeline(label, device, wgsl, canvasFormat, posLayout, texLayout, normLayout, compare, passOp, shadowAlpha) {
+function createPipeline(label, device, wgsl, vertexEntryPoint, fragmentEntrypoint, canvasFormat, layout, compare, passOp, shadowAlpha) {
     let shadowBlend = {
         color: { dstFactor: "zero" },
         alpha: { dstFactor: "zero" }
@@ -57,13 +57,13 @@ function createPipeline(label, device, wgsl, canvasFormat, posLayout, texLayout,
         vertex: {
             label: "vertex shader",
             module: wgsl,
-            entryPoint: "main_vs",
-            buffers: [posLayout, texLayout, normLayout]
+            entryPoint: vertexEntryPoint,
+            buffers: layout
         },
         fragment: {
             label: "fragment shader",
             module: wgsl,
-            entryPoint: "main_fs",
+            entryPoint: fragmentEntrypoint,
             targets: [{
                 format: canvasFormat,
                 blend: shadowBlend
@@ -338,6 +338,11 @@ async function main() {
     const wgslcode = await fetch(wgslfile, { cache: "reload" }).then(r => r.text());
     const wgsl = device.createShaderModule({ code: wgslcode });
 
+    const wgslShadowFile = document.getElementById("shadowWGSL").src;
+    const wgslShadwCode = await fetch(wgslShadowFile, { cache: "reload" }).then(r => r.text());
+    const shadowWGSL = device.createShaderModule({ code: wgslShadwCode });
+
+
     // Create
     const depthTexture = device.createTexture({
         size: { width: canvas.width, height: canvas.height },
@@ -347,17 +352,20 @@ async function main() {
     });
 
     // Render pipeline
-    const pipeline = createPipeline("plane pipeline", device, wgsl, canvasFormat, planePosBufferLayout,
-        textureBufferLayout, planeNormalBufferLayout, "always", "replace", false)
+    const pipeline = createPipeline("plane pipeline", device, wgsl, "main_vs", "main_fs", canvasFormat, [planePosBufferLayout,
+        textureBufferLayout, planeNormalBufferLayout], "always", "replace", false)
 
-    const teapotPipeline = createPipeline("teapot pipeline", device, wgsl, canvasFormat, teapotPointsBufferLayout,
-        textureBufferLayout, teapotNormalBufferLayout, "always", "keep", false)
+    const teapotPipeline = createPipeline("teapot pipeline", device, wgsl, "main_vs", "main_fs", canvasFormat, [teapotPointsBufferLayout,
+        redTextureBufferLayout, teapotNormalBufferLayout], "always", "keep", false)
 
-    const shadowPipeline = createPipeline("shadow pipeline", device, wgsl, canvasFormat, teapotPointsBufferLayout,
-        textureBufferLayout, teapotNormalBufferLayout, "equal", "zero", shadowBlend = true)
+    const shadowPipeline = createPipeline("shadow pipeline", device, wgsl, "main_vs", "main_fs", canvasFormat, [teapotPointsBufferLayout,
+        redTextureBufferLayout, teapotNormalBufferLayout], "equal", "zero", shadowBlend = true)
+
 
 
     // Shadow mapping 
+    const shadowMapPipeline = createPipeline("shadow map pipeline", device, shadowWGSL, "main_vs_depth", "main_fs_depth", canvasFormat, [teapotPointsBufferLayout,
+        redTextureBufferLayout, teapotNormalBufferLayout], "equal", "zero", shadowBlend = true)
     const shadowTextureSize = 1024; // 32 * 32
 
     const shadowTexture = device.createTexture({
@@ -406,9 +414,9 @@ async function main() {
     let flatPointLight = flatten(pointLight)
 
     let lightView = lookAt(pointLight, lookat, up)
-    let lightPerspective = perspective(90.0, 1, 0.1, 100.0)
+    let lightProjection = perspective(90.0, 1, 0.1, 100.0)
 
-    let lightMvp = mult(lightPerspective, mult(lightView, M_s))
+    let lightViewProj = mult(lightPerspective, lightView)
 
     let shadowMvp = mult(mvp_perspective, mult(view, M_s))
     let flatShadowMvp = flatten(shadowMvp)
@@ -430,7 +438,6 @@ async function main() {
     let shadowData = new Float32Array(uniformArraySize);
     shadowData.set((flatShadowMvp))
     shadowData.set(flatModelMatix, flatMvp.length)
-
     shadowData.set(flatPointLight, flatMvp.length + flatModelMatix.length)
     shadowData[flatMvp.length + flatModelMatix.length + flatPointLight.length] = shadowVisibility
 
@@ -453,6 +460,16 @@ async function main() {
 
     const shadowBindGroup = createBindGroup(device, shadowPipeline, redTexture, shadowUniformBuffer)
     device.queue.writeBuffer(shadowUniformBuffer, 0, shadowData)
+
+    // Shadow map data and uniform buffer
+    let shadowMapUniArraySize = (modelMatrix.length, lightViewProj.length);
+
+    let shadowMapData = new Float32Array(shadowMapUniSize);
+    const shadowMapUniBufSize = 64
+    const shadowMapUniBuf = createUniformBuffer(device, shadowMapUniBufSize)
+    const shadowMapBindGroup = createBindGroup(device, shadowMapPipeline, depthTexture, shadowMapUniBuf)
+    device.queue.writeBuffer(shadowUniformBuffer, 0, shadowData)
+
 
 
 
