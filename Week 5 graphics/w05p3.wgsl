@@ -1,7 +1,7 @@
 struct VSOut {
     @builtin(position) position: vec4f,
     @location(0) color: vec3f,
-    @location(1) viewPos: vec3f
+    @location(1) viewPos: vec3f,
 }
 
 struct Uniforms {
@@ -12,19 +12,23 @@ struct Uniforms {
     L_a: vec3f,
     k_d: f32,
     k_s: f32,
-    s: f32
+    s: f32,
 }
 
 @group(0) @binding(0)
 var<uniform> uniforms: Uniforms;
 
 //Placeholders
-const I_e: vec3f = vec3f(0.0, 0.0, - 1.0);
+const I_e: vec3f = vec3f(0.0, 0.0, -1.0);
 
 const diffuseColor: vec3f = vec3f(1.0, 0.0, 1.0);
 const specularColor: vec3f = vec3f(1.0, 1.0, 1.0);
 @vertex
-fn main_vs(@builtin(instance_index) instanceIdx: u32, @location(0) inPos: vec4f, @location(1) inColor: vec3f) -> VSOut {
+fn main_vs(
+    @builtin(instance_index) instanceIdx: u32,
+    @location(0) inPos: vec4f,
+    @location(1) inColor: vec3f,
+) -> VSOut {
     var vsOut: VSOut;
     let p = uniforms.mvp[instanceIdx] * inPos;
     vsOut.color = inColor;
@@ -35,17 +39,20 @@ fn main_vs(@builtin(instance_index) instanceIdx: u32, @location(0) inPos: vec4f,
 
 @fragment
 fn main_fs(in: VSOut) -> @location(0) vec4f {
-    let w_i = normalize(- I_e);
+    let w_i = normalize(-I_e);
     let normal = normalize(in.color);
 
     let cos_theta = dot(normal, w_i);
     let w_r = normalize(2.0 * (dot(w_i, normal)) * normal - w_i);
     // vec4(inColor, 1.0) to circumvent mismatching matrix
-    let w_o = normalize(- (in.viewPos).xyz);
+    let w_o = normalize(-(in.viewPos).xyz);
+
+    // Check so specular highlight isn't drawn in shadow
+    let specular = select(0.0, pow(max(dot(w_r, w_o), 0.0), uniforms.s), cos_theta > 0.0);
 
     // Phong
     // we assume L_i = L_e, = 1 and k_a = k_d
-    let L_phong = uniforms.k_s * specularColor * uniforms.L_e * pow(max(dot(w_r, w_o), 0), uniforms.s);
+    let L_phong = uniforms.k_s * specularColor * uniforms.L_e * specular;
     let L_rd = uniforms.k_d * diffuseColor * uniforms.L_e * max(cos_theta, 0);
     let L_ra = uniforms.k_d * diffuseColor * uniforms.L_a;
     let L_o = L_rd + L_phong + L_ra;
