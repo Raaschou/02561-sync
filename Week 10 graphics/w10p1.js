@@ -207,7 +207,8 @@ async function main() {
 
     let A = canvas.width / canvas.height
     let P = perspective(45.0, A, 0.1, 100.0)
-    let eye = vec3(radius * Math.sin(orbitAngle), 0.5, radius * Math.cos(orbitAngle))
+    let initEye = vec3(0, 0.5, radius)
+    let eye = initEye
 
     function updateUniforms(mvp, view) {
         const data = new Float32Array(44);
@@ -239,33 +240,27 @@ async function main() {
     canvas.addEventListener("mousedown", function (ev) {
         let x0 = ev.clientX
         let y0 = ev.clientY
-        console.log("x0,y0: (", x0, y0, ")")
         this.addEventListener("mousemove", roll)
         this.addEventListener("mouseup", release)
 
         function roll(e) {
             let x = e.clientX
             let y = e.clientY
-            console.log("x,y: (", x, y, ")")
 
             deltaThetaX = sens * (y - y0)
             deltaThetaY = sens * (x - x0)
 
-            // if the thetas are defined as thetaX += deltaThetaX
-            // we have to "unwind" the sum of theta when dragging the mouse
-            // in the opposite position
-            thetaX = deltaThetaX
-            thetaY = deltaThetaY
+            thetaX += deltaThetaX
+            thetaY += deltaThetaY
             x0 = x
             y0 = y
-            eye = mult(rotateX(thetaX), mult(rotateY(thetaY), eye))
+            eye = mult(rotateX(thetaX), mult(rotateY(thetaY), initEye))
         }
         function release() {
             this.removeEventListener("mousemove", roll)
             this.removeEventListener("mouseup", release)
         }
     });
-    console.log(mult(rotateX(thetaX), mult(rotateY(thetaY), eye)))
     function animate() {
 
         const view = lookAt(eye, lookat, up);
