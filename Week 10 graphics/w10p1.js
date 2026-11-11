@@ -14,7 +14,23 @@ function unpackVec3(data) {
 
     return result;
 }
+// mat 3 rotate functions inspired from MV.js, because 
+// I was getting a wrong dimension exception
+function rotateX(theta) {
+    return mat3(
+        1, 0, 0,
+        0, Math.cos(theta), -Math.sin(theta),
+        0, Math.sin(theta), Math.cos(theta)
+    );
+}
 
+function rotateY(theta) {
+    return mat3(
+        Math.cos(theta), 0, Math.sin(theta),
+        0, 1, 0,
+        -Math.sin(theta), 0, Math.cos(theta)
+    );
+}
 async function main() {
     const canvas = document.querySelector("canvas");
 
@@ -54,7 +70,7 @@ async function main() {
     let k_d = parseFloat(diffusionSlider.value)
     let k_s = parseFloat(specularSlider.value)
     let s = parseFloat(shinySlider.value)
-    console.log("L_e: ", L_e, "L_a: ", L_a, "k_d: ", k_d, "k_s: ", k_s, "s: ", s,)
+
     emissionSlider.addEventListener("input", function () { L_e = parseFloat(emissionSlider.value); if (!orbiting) animate(); })
     ambianceSlider.addEventListener("input", function () { L_a = parseFloat(ambianceSlider.value); if (!orbiting) animate(); })
     diffusionSlider.addEventListener("input", function () { k_d = parseFloat(diffusionSlider.value); if (!orbiting) animate(); })
@@ -73,6 +89,11 @@ async function main() {
     let orbiting = false;
     let orbitAngle = 0.0;
     let radius = 1.5
+
+    let thetaX = 0.0;
+    let thetaY = 0.0;
+
+
     const M_SQRT2 = Math.sqrt(2.0);
     const M_SQRT6 = Math.sqrt(6.0);
 
@@ -81,11 +102,6 @@ async function main() {
     var indices = obj.indices;
     let normals = unpackVec3(obj.normals); // normals are named colors from week 4
     let colors = unpackVec3(obj.colors)
-
-    console.log(positions)
-    console.log(indices)
-    console.log(normals)
-    console.log(colors)
 
 
     let indexBuffer = device.createBuffer({
@@ -191,6 +207,7 @@ async function main() {
 
     let A = canvas.width / canvas.height
     let P = perspective(45.0, A, 0.1, 100.0)
+    let eye = vec3(radius * Math.sin(orbitAngle), 0.5, radius * Math.cos(orbitAngle))
 
     function updateUniforms(mvp, view) {
         const data = new Float32Array(44);
@@ -215,21 +232,47 @@ async function main() {
         device.queue.writeBuffer(uniformBuffer, 0, data);
     }
 
-    function animate() {
-        let eye;
-        if (orbiting) {
-            orbitAngle += 0.01
-            // Rotate the eye space around sphere
-            // radius = 5.0 
-            eye = vec3(radius * Math.sin(orbitAngle), 0.5, radius * Math.cos(orbitAngle))
-        } else {
-            eye = vec3(0.5, 0.5, radius)
+    const sens = 0.01
+    let deltaThetaX = 0.0;
+    let deltaThetaY = 0.0;
+
+    canvas.addEventListener("mousedown", function (ev) {
+        let x0 = ev.clientX
+        let y0 = ev.clientY
+        console.log("x0,y0: (", x0, y0, ")")
+        this.addEventListener("mousemove", roll)
+        this.addEventListener("mouseup", release)
+
+        function roll(e) {
+            let x = e.clientX
+            let y = e.clientY
+            console.log("x,y: (", x, y, ")")
+
+            deltaThetaX = sens * (y - y0)
+            deltaThetaY = sens * (x - x0)
+
+            // if the thetas are defined as thetaX += deltaThetaX
+            // we have to "unwind" the sum of theta when dragging the mouse
+            // in the opposite position
+            thetaX = deltaThetaX
+            thetaY = deltaThetaY
+            x0 = x
+            y0 = y
+            eye = mult(rotateX(thetaX), mult(rotateY(thetaY), eye))
         }
+        function release() {
+            this.removeEventListener("mousemove", roll)
+            this.removeEventListener("mouseup", release)
+        }
+    });
+    console.log(mult(rotateX(thetaX), mult(rotateY(thetaY), eye)))
+    function animate() {
+
         const view = lookAt(eye, lookat, up);
         const mvp = mult(P, view);
 
         updateUniforms(mvp, view)
-        if (orbiting) requestAnimationFrame(animate)
+        requestAnimationFrame(animate)
         render()
     }
 
@@ -258,12 +301,9 @@ async function main() {
         //calc_indices()
         render()
     })
-    orbitButton.addEventListener("click", function () {
-        orbiting = !orbiting
-        requestAnimationFrame(animate)
-    })
 
 
+    requestAnimationFrame(animate)
 
     function render() {
         const encoder = device.createCommandEncoder();
