@@ -9,9 +9,9 @@ struct Uniforms {
     mvp: mat4x4f,
     // make shadows black using visibility uniform
     model: mat4x4f,
+    lightViewProj: mat4x4f,
     lightPos: vec3f,
     visibility: f32,
-    //lightViewProj: mat4x4f,
 }
 
 @group(0) @binding(0)
@@ -20,6 +20,8 @@ var mySampler: sampler;
 var myTexture: texture_2d<f32>;
 @group(0) @binding(2)
 var<uniform> uniforms: Uniforms;
+@group(0) @binding(3)
+var shadowMap: texture_2d<f32>;
 
 const k_d: f32 = 0.50;
 const L_e: f32 = 1.0;
@@ -27,6 +29,8 @@ const L_a: f32 = 0.4;
 const shine: f32 = 100.0;
 const k_s: f32 = 0.3;
 const specularColor: vec3f = vec3f(1.0, 1.0, 1.0);
+const W = 1024;
+const H = 1024;
 
 @vertex
 fn main_vs(
@@ -45,6 +49,9 @@ fn main_vs(
 
 @fragment
 fn main_fs(in: VSOut) -> @location(0) vec4f {
+    let lightClip = uniforms.lightViewProj * vec4f(in.viewPos, 1.0);
+    let shadowCoords = (lightClip.xyz / lightClip.w) * vec3f(0.5, -0.5, 1.0) + vec3f(0.5, 0.5, 0.0);
+    let depth = textureLoad(shadowMap, vec2i(shadowCoords.xy * vec2f(W, H)), 0).r;
     let color = textureSample(myTexture, mySampler, in.texCoord);
     let rgb = color.rgb;
     var L_o = rgb;
@@ -55,8 +62,10 @@ fn main_fs(in: VSOut) -> @location(0) vec4f {
         let cos_theta = dot(normal, w_i);
         let w_r = normalize(2.0 * (dot(w_i, normal)) * normal - w_i);
         let w_o = normalize(-(in.viewPos));
+        // Check so specular highlight isn't drawn in shadow
+        let specular = select(0.0, pow(max(dot(w_r, w_o), 0.0), shine), cos_theta > 0.0);
 
-        let L_phong = k_s * specularColor * L_e * pow(max(dot(w_r, w_o), 0), shine);
+        let L_phong = k_s * specularColor * L_e * specular;
         let L_rd = k_d * rgb * L_e * max(cos_theta, 0);
         let L_ra = k_d * rgb * L_a;
         L_o = L_rd + L_phong + L_ra;
@@ -70,7 +79,7 @@ fn main_fs(in: VSOut) -> @location(0) vec4f {
     return vec4f(L_o * shadowAlphaMultiplier, color.a * uniforms.visibility);
 }
 
-/* @vertex
+@vertex
 fn main_vs_depth(@location(0) inPos: vec4f) -> @builtin(position) vec4f {
     return uniforms.lightViewProj * uniforms.model * inPos;
 }
@@ -78,4 +87,4 @@ fn main_vs_depth(@location(0) inPos: vec4f) -> @builtin(position) vec4f {
 @fragment
 fn main_fs_depth(@builtin(position) fragcoord: vec4f) -> @location(0) vec4f {
     return vec4f(vec3f(fragcoord.z), 1.0);
-} */
+}

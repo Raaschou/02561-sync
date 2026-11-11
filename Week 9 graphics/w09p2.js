@@ -16,14 +16,25 @@ function unpackVec3(data) {
 
 
 // Helper function for creating bindGroups
-function createBindGroup(device, pipeline, texture, uniformBuffer) {
+function createBindGroup(label, device, pipeline, texture, shadowTexture, uniformBuffer) {
+    if (label === "shadow map bind group") {
+        return device.createBindGroup({
+            label: label,
+            layout: pipeline.getBindGroupLayout(0),
+            entries: [
+                { binding: 0, resource: { buffer: uniformBuffer } },
+            ],
+        })
+
+    }
     return device.createBindGroup({
-        label: "plane bind group",
+        label: label,
         layout: pipeline.getBindGroupLayout(0),
         entries: [
             { binding: 0, resource: texture.sampler },
             { binding: 1, resource: texture.createView() },
             { binding: 2, resource: { buffer: uniformBuffer } },
+            { binding: 3, resource: shadowTexture.createView() }
         ],
     })
 }
@@ -36,7 +47,8 @@ function createUniformBuffer(device, size) {
     });
 }
 
-function createPipeline(label, device, wgsl, vertexEntryPoint, fragmentEntrypoint, canvasFormat, layout, compare, passOp, shadowAlpha) {
+function createPipeline(label, device, wgsl, vertexEntryPoint,
+    fragmentEntrypoint, canvasFormat, layout, compare, passOp, shadowAlpha, pipelineLayout) {
     let shadowBlend = {
         color: { dstFactor: "zero" },
         alpha: { dstFactor: "zero" }
@@ -49,11 +61,11 @@ function createPipeline(label, device, wgsl, vertexEntryPoint, fragmentEntrypoin
         }
         //let stencilFormat = shadowAlpha ? "depth24plus-stencil8" : "depth24plus"
     }
-
-
+    const blend = canvasFormat === "rgba32float" ? undefined : shadowBlend;
+    pipelineLayout = canvasFormat === "rgba32float" ? "auto" : pipelineLayout
     return device.createRenderPipeline({
         label: label,
-        layout: "auto",
+        layout: pipelineLayout,
         vertex: {
             label: "vertex shader",
             module: wgsl,
@@ -66,7 +78,7 @@ function createPipeline(label, device, wgsl, vertexEntryPoint, fragmentEntrypoin
             entryPoint: fragmentEntrypoint,
             targets: [{
                 format: canvasFormat,
-                blend: shadowBlend
+                blend: blend
             }],
         },
         depthStencil: {
@@ -343,7 +355,7 @@ async function main() {
     const shadowWGSL = device.createShaderModule({ code: wgslShadwCode });
 
 
-    // Create
+    // Create depth texture
     const depthTexture = device.createTexture({
         size: { width: canvas.width, height: canvas.height },
         format: 'depth24plus-stencil8',
@@ -351,21 +363,38 @@ async function main() {
         usage: GPUTextureUsage.RENDER_ATTACHMENT,
     });
 
-    // Render pipeline
-    const pipeline = createPipeline("plane pipeline", device, wgsl, "main_vs", "main_fs", canvasFormat, [planePosBufferLayout,
-        textureBufferLayout, planeNormalBufferLayout], "always", "replace", false)
 
-    const teapotPipeline = createPipeline("teapot pipeline", device, wgsl, "main_vs", "main_fs", canvasFormat, [teapotPointsBufferLayout,
-        redTextureBufferLayout, teapotNormalBufferLayout], "always", "keep", false)
+    const bindGroupLayout = device.createBindGroupLayout({
+        entries: [
+            { binding: 0, visibility: GPUShaderStage.FRAGMENT, sampler: {} },
+            { binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: {} },
+            { binding: 2, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, buffer: {} },
+            { binding: 3, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "unfilterable-float" } },
+        ],
+    });
+
+
+    // Render pipeline
+
+    const pipelineLayout = device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] });
+
+    const pipeline = createPipeline("plane pipeline", device, wgsl, "main_vs", "main_fs", canvasFormat,
+        [planePosBufferLayout, textureBufferLayout, planeNormalBufferLayout],
+        "always", "replace", false, pipelineLayout);
+
+    const teapotPipeline = createPipeline("teapot pipeline", device, wgsl, "main_vs", "main_fs", canvasFormat,
+        [teapotPointsBufferLayout, redTextureBufferLayout, teapotNormalBufferLayout],
+        "always", "keep", false, pipelineLayout);
+
 
     const shadowPipeline = createPipeline("shadow pipeline", device, wgsl, "main_vs", "main_fs", canvasFormat, [teapotPointsBufferLayout,
-        redTextureBufferLayout, teapotNormalBufferLayout], "equal", "zero", shadowBlend = true)
+        redTextureBufferLayout, teapotNormalBufferLayout], "equal", "zero", shadowBlend = true, pipelineLayout)
 
 
 
     // Shadow mapping 
-    const shadowMapPipeline = createPipeline("shadow map pipeline", device, shadowWGSL, "main_vs_depth", "main_fs_depth", canvasFormat, [teapotPointsBufferLayout,
-        redTextureBufferLayout, teapotNormalBufferLayout], "equal", "zero", shadowBlend = true)
+    const shadowMapPipeline = createPipeline("shadow map pipeline", device, shadowWGSL, "main_vs_depth", "main_fs_depth",
+        "rgba32float", [teapotPointsBufferLayout,], "equal", "zero", shadowBlend = true, pipelineLayout)
     const shadowTextureSize = 1024; // 32 * 32
 
     const shadowTexture = device.createTexture({
@@ -373,8 +402,18 @@ async function main() {
         usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
         format: 'rgba32float',
     });
-    const shadowTextureView = shadowTexture.createView();
 
+    //const shadowTextureView = shadowTexture.createView();
+    shadowTexture.sampler = device.createSampler({
+        label: "Texture sampler",
+    });
+
+    // shadow map depth map
+    const shadowDepthTexture = device.createTexture({
+        size: [shadowTextureSize, shadowTextureSize],
+        format: 'depth24plus-stencil8',
+        usage: GPUTextureUsage.RENDER_ATTACHMENT,
+    });
 
     // View setup
     const eye = vec3(0.0, 0.0, 0.0)
@@ -410,40 +449,46 @@ async function main() {
     const mvp = mult(mvp_perspective, view)
     const flatMvp = flatten(mvp);
     let modelMatrix = mat4();
-    let flatModelMatix = flatten(modelMatrix)
+    let flatModelMatrix = flatten(modelMatrix)
     let flatPointLight = flatten(pointLight)
 
     let lightView = lookAt(pointLight, lookat, up)
-    let lightProjection = perspective(90.0, 1, 0.1, 100.0)
+    let lightProjection = perspective(90.0, 1, 0.1, 10.0)
 
-    let lightViewProj = mult(lightPerspective, lightView)
+    let lightViewProj = mult(lightProjection, lightView)
+    let flatLVP = flatten(lightViewProj)
 
     let shadowMvp = mult(mvp_perspective, mult(view, M_s))
     let flatShadowMvp = flatten(shadowMvp)
 
-    let uniformArraySize = (flatMvp.length + flatModelMatix.length + pointLight.length + 1)
+    let uniformArraySize = (flatMvp.length + flatModelMatrix.length + pointLight.length + flatLVP.length + 1)
 
     let data = new Float32Array(uniformArraySize);
     data.set((flatMvp))
-    data.set(flatModelMatix, flatMvp.length)
-    data.set(flatPointLight, flatModelMatix.length + flatMvp.length)
-    data[flatMvp.length + flatModelMatix.length + flatPointLight.length] = visibility
+    data.set(flatModelMatrix, flatMvp.length)
+    data.set(flatLVP, flatModelMatrix.length + flatMvp.length)
+    data.set(flatPointLight, flatLVP.length + flatModelMatrix.length + flatMvp.length)
+    data[flatMvp.length + flatModelMatrix.length + flatLVP.length + flatPointLight.length] = visibility
 
     let teapotData = new Float32Array(uniformArraySize);
     teapotData.set((flatMvp))
-    teapotData.set(flatModelMatix, flatMvp.length)
-    teapotData.set(flatPointLight, flatMvp.length + flatModelMatix.length)
-    teapotData[flatMvp.length + flatModelMatix.length + flatPointLight.length] = visibility - 0.1
+    teapotData.set(flatModelMatrix, flatMvp.length)
+    teapotData.set(flatLVP, flatMvp.length + flatModelMatrix.length)
+    teapotData.set(flatPointLight, flatLVP.length + flatModelMatrix.length + flatMvp.length)
+
+    teapotData[flatMvp.length + flatModelMatrix.length + flatLVP.length + flatPointLight.length] = visibility - 0.1
 
     let shadowData = new Float32Array(uniformArraySize);
     shadowData.set((flatShadowMvp))
-    shadowData.set(flatModelMatix, flatMvp.length)
-    shadowData.set(flatPointLight, flatMvp.length + flatModelMatix.length)
-    shadowData[flatMvp.length + flatModelMatix.length + flatPointLight.length] = shadowVisibility
+    shadowData.set(flatModelMatrix, flatMvp.length)
+    shadowData.set(flatLVP, flatMvp.length + flatModelMatrix.length)
+    shadowData.set(flatPointLight, flatLVP.length + flatModelMatrix.length + flatMvp.length)
+
+    shadowData[flatMvp.length + flatModelMatrix.length + flatLVP.length + flatPointLight.length] = shadowVisibility
 
 
     // Mat 4(4 rows *4 cols*4 bytes per f32) * 2 + vec3f(3*4 bytes per f32) + f32
-    const uniformBufferSize = (64 * 2 + 16 + 4)
+    const uniformBufferSize = (64 * 2 + 16 + 4 + 34 + 64)
     // Uniform buffer and bind group
     const uniformBuffer = createUniformBuffer(device, uniformBufferSize)
     const teapotUniformBuffer = createUniformBuffer(device, uniformBufferSize)
@@ -452,23 +497,30 @@ async function main() {
 
 
 
-    const planeBindGroup = createBindGroup(device, pipeline, myTexture, uniformBuffer)
+    const planeBindGroup = createBindGroup("plane bind group", device, pipeline, myTexture, shadowTexture, uniformBuffer)
     device.queue.writeBuffer(uniformBuffer, 0, data)
 
-    const teapotBindGroup = createBindGroup(device, teapotPipeline, redTexture, teapotUniformBuffer)
+    const teapotBindGroup = createBindGroup("teapot bind group", device, teapotPipeline, redTexture, shadowTexture, teapotUniformBuffer)
     device.queue.writeBuffer(teapotUniformBuffer, 0, teapotData)
 
-    const shadowBindGroup = createBindGroup(device, shadowPipeline, redTexture, shadowUniformBuffer)
-    device.queue.writeBuffer(shadowUniformBuffer, 0, shadowData)
+    const shadowBindGroup = createBindGroup("shadow bind group", device, shadowPipeline, redTexture, shadowTexture, shadowUniformBuffer)
+    device.queue.writeBuffer(shadowUniformBuffer, 0, shadowData,)
+
+
+
 
     // Shadow map data and uniform buffer
-    let shadowMapUniArraySize = (modelMatrix.length, lightViewProj.length);
+    const shadowMapUniArraySize = (flatModelMatrix.length + flatten(lightViewProj).length); // 32
+    const shadowMapUniBufSize = 128 // 32 * 4
 
-    let shadowMapData = new Float32Array(shadowMapUniSize);
-    const shadowMapUniBufSize = 64
+    let shadowMapData = new Float32Array(shadowMapUniArraySize);
+    shadowMapData.set(flatModelMatrix)
+    shadowMapData.set(flatten(lightViewProj), flatModelMatrix.length)
+
     const shadowMapUniBuf = createUniformBuffer(device, shadowMapUniBufSize)
-    const shadowMapBindGroup = createBindGroup(device, shadowMapPipeline, depthTexture, shadowMapUniBuf)
-    device.queue.writeBuffer(shadowUniformBuffer, 0, shadowData)
+    const shadowMapBindGroup = createBindGroup("shadow map bind group", device, shadowMapPipeline, shadowTexture, shadowTexture, shadowMapUniBuf)
+
+    device.queue.writeBuffer(shadowMapUniBuf, 0, shadowMapData)
 
 
 
@@ -485,7 +537,6 @@ async function main() {
         startAnimation()
     });
 
-    render();
     let movingModelMatrix = mat4()
 
     function animate() {
@@ -499,8 +550,12 @@ async function main() {
             teapotData.set(flatten(movingModelMatrix), flatMvp.length);
 
             shadowData.set(flatten(movingModelMatrix), flatMvp.length)
+            shadowMapData.set(flatten(movingModelMatrix))
+
+
             device.queue.writeBuffer(teapotUniformBuffer, 0, teapotData);
             device.queue.writeBuffer(shadowUniformBuffer, 0, shadowData);
+            device.queue.writeBuffer(shadowMapUniBuf, 0, shadowMapData)
 
         }
 
@@ -517,14 +572,21 @@ async function main() {
             )
             // mult with model to update shadow size
             shadowMvp = mult(mvp_perspective, mult(view, mult(M_s, movingModelMatrix)))
+            lightView = lookAt(pointLight, lookat, up)
+
+            lightViewProj = mult(lightProjection, lightView)
+
             flatShadowMvp = flatten(shadowMvp)
             flatPointLight = flatten(pointLight)
             shadowData.set((flatShadowMvp))
-            teapotData.set(flatPointLight, 32);
+            teapotData.set(flatPointLight, flatLVP.length + flatModelMatrix.length + flatMvp.length)
+
+            shadowMapData.set(flatten(lightViewProj), flatModelMatrix.length)
             //shadowData.set(flatPointLight, 32);
 
             device.queue.writeBuffer(shadowUniformBuffer, 0, shadowData)
             device.queue.writeBuffer(teapotUniformBuffer, 0, teapotData);
+            device.queue.writeBuffer(shadowMapUniBuf, 0, shadowMapData)
 
 
         }
@@ -536,18 +598,35 @@ async function main() {
         }
         render();
     }
+    render();
 
     function render() {
         const encoder = device.createCommandEncoder();
+        // Do shadow pass
         const shadowPass = encoder.beginRenderPass({
             colorAttachments: [{
-                view: shadowTextureView,
-                depthClearValue: 1.0,
+                view: shadowTexture.createView(),
+                clearValue: [1.0, 1.0, 1.0, 1.0],
                 loadOp: "clear",
                 storeOp: 'store',
             }],
+            depthStencilAttachment: {
+                view: shadowDepthTexture.createView(),
+                depthClearValue: 1.0,
+                depthLoadOp: "clear",
+                depthStoreOp: "store",
+                stencilClearValue: 0,
+                stencilLoadOp: "clear",
+                stencilStoreOp: "store",
+            }
         })
-        shadowPass.end()
+        shadowPass.setPipeline(shadowMapPipeline);
+        shadowPass.setBindGroup(0, shadowMapBindGroup);
+        shadowPass.setVertexBuffer(0, teapotPointsBuffer);
+        shadowPass.setIndexBuffer(indexBuffer, 'uint32');
+        shadowPass.drawIndexed(teapotIndices.length, 1, planeIndicies.length, 0);
+        shadowPass.end();
+
 
         const pass = encoder.beginRenderPass({
             label: "pass encoder",
@@ -589,9 +668,7 @@ async function main() {
         pass.setVertexBuffer(2, teapotNormalBuffer);
 
         // Then draw shadows on plane
-        pass.setPipeline(shadowPipeline)
-        pass.setBindGroup(0, shadowBindGroup);
-        pass.drawIndexed(teapotIndices.length, 1, planeIndicies.length, 0)
+
         // Lastly draw teapot
         pass.setPipeline(teapotPipeline);
         pass.setBindGroup(0, teapotBindGroup);
