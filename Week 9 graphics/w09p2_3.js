@@ -444,7 +444,9 @@ async function main() {
         -n[0], -n[1], -n[2], a - d
 
     )
-
+    const lightTarget = vec3(0.0, -1.0, -3.0);
+    let lightView = lookAt(pointLight, lightTarget, up);
+    let lightProjection = perspective(110.0, 1, 0.1, 10.0)
     const view = lookAt(eye, lookat, up)
     const mvp = mult(mvp_perspective, view)
     const flatMvp = flatten(mvp);
@@ -452,8 +454,8 @@ async function main() {
     let flatModelMatrix = flatten(modelMatrix)
     let flatPointLight = flatten(pointLight)
 
-    let lightView = lookAt(pointLight, lookat, up)
-    let lightProjection = perspective(90.0, 1, 0.1, 10.0)
+    //let lightView = lookAt(pointLight, lookat, up)
+    //let lightProjection = perspective(90.0, 1, 0.1, 10.0)
 
     let lightViewProj = mult(lightProjection, lightView)
     let flatLVP = flatten(lightViewProj)
@@ -560,35 +562,23 @@ async function main() {
         }
 
         if (orbiting) {
-            orbitAngle += 0.01
-            // Recalculate the point light position
-            pointLight = vec3(0 + radius * Math.cos(orbitAngle), 2.0, -2 + radius * Math.sin(orbitAngle))
-            a = d + dot(n, pointLight) - epsilon;
-            M_s = mat4(
-                a - pointLight[0] * n[0], -pointLight[0] * n[1], -pointLight[0] * n[2], -pointLight[0] * d,
-                -pointLight[1] * n[0], a - pointLight[1] * n[1], -pointLight[1] * n[2], -pointLight[1] * d,
-                -pointLight[2] * n[0], -pointLight[2] * n[1], a - pointLight[2] * n[2], -pointLight[2] * d,
-                -n[0], -n[1], -n[2], a - d
-            )
-            // mult with model to update shadow size
-            shadowMvp = mult(mvp_perspective, mult(view, mult(M_s, movingModelMatrix)))
-            lightView = lookAt(pointLight, lookat, up)
+            orbitAngle += 0.01;
+            pointLight = vec3(radius * Math.cos(orbitAngle), 2.0, -2 + radius * Math.sin(orbitAngle));
 
-            lightViewProj = mult(lightProjection, lightView)
+            lightView = lookAt(pointLight, lightTarget, up);
+            lightViewProj = mult(lightProjection, lightView);
 
-            flatShadowMvp = flatten(shadowMvp)
-            flatPointLight = flatten(pointLight)
-            shadowData.set((flatShadowMvp))
-            teapotData.set(flatPointLight, flatLVP.length + flatModelMatrix.length + flatMvp.length)
+            const lvp = flatten(lightViewProj);
+            const lp = flatten(pointLight);
+            for (const arr of [data, teapotData]) {
+                arr.set(lvp, 32);   // after mvp (16) + model (16)
+                arr.set(lp, 48);    // after lightViewProj
+            }
+            shadowMapData.set(lvp, 16);
 
-            shadowMapData.set(flatten(lightViewProj), flatModelMatrix.length)
-            //shadowData.set(flatPointLight, 32);
-
-            device.queue.writeBuffer(shadowUniformBuffer, 0, shadowData)
+            device.queue.writeBuffer(uniformBuffer, 0, data);
             device.queue.writeBuffer(teapotUniformBuffer, 0, teapotData);
-            device.queue.writeBuffer(shadowMapUniBuf, 0, shadowMapData)
-
-
+            device.queue.writeBuffer(shadowMapUniBuf, 0, shadowMapData);
         }
         // Check to stop multiple calls of requestAnimationFrame(animate) speeding up animation
         if (moving || orbiting) {
@@ -668,7 +658,9 @@ async function main() {
         pass.setVertexBuffer(2, teapotNormalBuffer);
 
         // Then draw shadows on plane
-
+        // pass.setPipeline(shadowPipeline);
+        // pass.setBindGroup(0, shadowBindGroup);
+        // pass.drawIndexed(teapotIndices.length, 1, planeIndicies.length, 0)
         // Lastly draw teapot
         pass.setPipeline(teapotPipeline);
         pass.setBindGroup(0, teapotBindGroup);

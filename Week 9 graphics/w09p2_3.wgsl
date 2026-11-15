@@ -51,32 +51,39 @@ fn main_vs(
 fn main_fs(in: VSOut) -> @location(0) vec4f {
     let lightClip = uniforms.lightViewProj * vec4f(in.viewPos, 1.0);
     let shadowCoords = (lightClip.xyz / lightClip.w) * vec3f(0.5, -0.5, 1.0) + vec3f(0.5, 0.5, 0.0);
-    let depth = textureLoad(shadowMap, vec2i(shadowCoords.xy * vec2f(W, H)), 0).r;
+
+    var inShadow = false;
+    if all(shadowCoords.xy >= vec2f(0.0)) && all(shadowCoords.xy < vec2f(1.0))
+        && shadowCoords.z <= 1.0 {
+        let depth = textureLoad(shadowMap, vec2i(shadowCoords.xy * vec2f(W, H)), 0).r;
+        inShadow = depth < shadowCoords.z - 0.001;
+    }
+
     let color = textureSample(myTexture, mySampler, in.texCoord);
     let rgb = color.rgb;
     var L_o = rgb;
-    // Hack to avoid shading also affecting marble texture
+
     if uniforms.visibility == 0.9 {
+        // teapot (Phong)
         let w_i = normalize(uniforms.lightPos - in.viewPos);
         let normal = normalize(in.normal);
         let cos_theta = dot(normal, w_i);
-        let w_r = normalize(2.0 * (dot(w_i, normal)) * normal - w_i);
-        let w_o = normalize(-(in.viewPos));
-        // Check so specular highlight isn't drawn in shadow
+        let w_r = normalize(2.0 * dot(w_i, normal) * normal - w_i);
+        let w_o = normalize(-in.viewPos);
         let specular = select(0.0, pow(max(dot(w_r, w_o), 0.0), shine), cos_theta > 0.0);
 
-        let L_phong = k_s * specularColor * L_e * specular;
-        let L_rd = k_d * rgb * L_e * max(cos_theta, 0);
         let L_ra = k_d * rgb * L_a;
-        L_o = L_rd + L_phong + L_ra;
+        if inShadow {
+            L_o = L_ra;
+        } else {
+            L_o = k_d * rgb * L_e * max(cos_theta, 0.0) + k_s * specularColor * L_e * specular
+                + L_ra;
+        }
+    } else if inShadow {
+        // ground plane
+        L_o = rgb * k_d * L_a;
     }
-    // Mult by visibility to create shadow
-    var shadowAlphaMultiplier = 1.0;
-    // use != 1.0 so alpha is changeable in js code
-    if uniforms.visibility == 0.6 {
-        shadowAlphaMultiplier = 0.0;
-    }
-    return vec4f(L_o * shadowAlphaMultiplier, color.a * uniforms.visibility);
+    return vec4f(L_o, 1.0);
 }
 
 @vertex
