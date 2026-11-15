@@ -31,6 +31,14 @@ function rotateY(theta) {
         -Math.sin(theta), 0, Math.cos(theta)
     );
 }
+
+function getOrthoProj(posX, posY) {
+    let d = Math.sqrt(posX ** 2 + posY ** 2)
+
+    return d <= 1 / Math.sqrt(2) ?
+        vec3(posX, posY, Math.sqrt(1 - d ** 2)) : vec3(posX, posY, 1 / (2 * d));
+}
+
 async function main() {
     const canvas = document.querySelector("canvas");
 
@@ -209,7 +217,9 @@ async function main() {
     let P = perspective(45.0, A, 0.1, 100.0)
     let initEye = vec3(0, 0.5, radius)
     let eye = initEye
-
+    let view = lookAt(eye, lookat, up);
+    let q_rot = new Quaternion()
+    let q_inc = new Quaternion()
     function updateUniforms(mvp, view) {
         const data = new Float32Array(44);
 
@@ -233,28 +243,35 @@ async function main() {
         device.queue.writeBuffer(uniformBuffer, 0, data);
     }
 
-    const sens = 0.01
-    let deltaThetaX = 0.0;
-    let deltaThetaY = 0.0;
 
     canvas.addEventListener("mousedown", function (ev) {
-        let x0 = ev.clientX
-        let y0 = ev.clientY
+        let bbox = ev.target.getBoundingClientRect();
+
+        // Map to [-1,1]
+        let x0 = 2 * (ev.clientX - bbox.left) / canvas.width - 1;
+        let y0 = 2 * (canvas.height - ev.clientY + bbox.top - 1) / canvas.height - 1;
+
+        let u = getOrthoProj(x0, y0)
+
         this.addEventListener("mousemove", roll)
         this.addEventListener("mouseup", release)
 
         function roll(e) {
-            let x = e.clientX
-            let y = e.clientY
+            let x = 2 * (e.clientX - bbox.left) / canvas.width - 1
+            let y = 2 * (canvas.height - e.clientY + bbox.top - 1) / canvas.height - 1
+            let v = getOrthoProj(x, y)
 
-            deltaThetaX = sens * (y - y0)
-            deltaThetaY = sens * (x - x0)
 
-            thetaX += deltaThetaX
-            thetaY += deltaThetaY
             x0 = x
             y0 = y
-            eye = mult(rotateX(thetaX), mult(rotateY(thetaY), initEye))
+            //eye = mult(rotateX(thetaX), mult(rotateY(thetaY), initEye))
+            q_inc = q_inc.make_rot_vec2vec(normalize(u), normalize(v))
+            q_rot.multiply(q_inc)
+            view = lookAt(add(q_rot.apply(vec3(0, 0, eye[2])), lookat), lookat, q_rot.apply(up));
+            u = v
+
+            requestAnimationFrame(animate)
+
         }
         function release() {
             this.removeEventListener("mousemove", roll)
@@ -263,11 +280,10 @@ async function main() {
     });
     function animate() {
 
-        const view = lookAt(eye, lookat, up);
+        //const view = lookAt(eye, lookat, up);
         const mvp = mult(P, view);
 
         updateUniforms(mvp, view)
-        requestAnimationFrame(animate)
         render()
     }
 
