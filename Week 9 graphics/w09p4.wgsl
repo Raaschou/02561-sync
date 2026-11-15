@@ -12,6 +12,7 @@ struct Uniforms {
     lightViewProj: mat4x4f,
     lightPos: vec3f,
     visibility: f32,
+    //shadowMapRes: f32,
 }
 
 @group(0) @binding(0)
@@ -32,6 +33,18 @@ const specularColor: vec3f = vec3f(1.0, 1.0, 1.0);
 const W = 1024;
 const H = 1024;
 
+fn texture_pcf(shadowCoords: vec3f, epsilon: f32) -> f32 {
+    var result = 0.0f;
+    for(var y = -1.5; y <= 1.5; y += 1.0) {
+        for(var x = -1.5; x <= 1.5; x += 1.0) {
+            let texCoords = vec2u(shadowCoords.xy * 1024 + vec2f(x, y));
+            let depth = textureLoad(shadowMap, texCoords, 0).r;
+            result += select(1.0, 0.0, depth < shadowCoords.z - epsilon);
+        }
+    }
+    return result / 16.0;
+}
+
 @vertex
 fn main_vs(
     @location(0) inPos: vec4f,
@@ -49,15 +62,11 @@ fn main_vs(
 
 @fragment
 fn main_fs(in: VSOut) -> @location(0) vec4f {
+    let epsilon = 0.001;
     let lightClip = uniforms.lightViewProj * vec4f(in.viewPos, 1.0);
     let shadowCoords = (lightClip.xyz / lightClip.w) * vec3f(0.5, -0.5, 1.0) + vec3f(0.5, 0.5, 0.0);
 
-    var inShadow = false;
-    if all(shadowCoords.xy >= vec2f(0.0)) && all(shadowCoords.xy < vec2f(1.0))
-        && shadowCoords.z <= 1.0 {
-        let depth = textureLoad(shadowMap, vec2i(shadowCoords.xy * vec2f(W, H)), 0).r;
-        inShadow = depth < shadowCoords.z - 0.001;
-    }
+    let lit = texture_pcf(shadowCoords, epsilon);
 
     let color = textureSample(myTexture, mySampler, in.texCoord);
     let rgb = color.rgb;
@@ -73,19 +82,17 @@ fn main_fs(in: VSOut) -> @location(0) vec4f {
         let specular = select(0.0, pow(max(dot(w_r, w_o), 0.0), shine), cos_theta > 0.0);
 
         let L_ra = k_d * rgb * L_a;
-        if inShadow {
-            L_o = L_ra;
-        } else {
-            L_o = k_d * rgb * L_e * max(cos_theta, 0.0) + k_s * specularColor * L_e * specular
-                + L_ra;
-        }
-    } else if inShadow {
+        let L_rd = k_d * rgb * L_e * max(cos_theta, 0.0);
+        let L_phong = k_s * specularColor * L_e * specular;
+
+        L_o = L_ra + lit * (L_rd + L_phong);
+    } else {
         // ground plane
-        L_o = rgb * k_d * L_a;
+        let shadowed = rgb * k_d * L_a;
+        L_o = mix(shadowed, rgb, lit);
     }
     return vec4f(L_o, 1.0);
 }
-
 @vertex
 fn main_vs_depth(@location(0) inPos: vec4f) -> @builtin(position) vec4f {
     return uniforms.lightViewProj * uniforms.model * inPos;
