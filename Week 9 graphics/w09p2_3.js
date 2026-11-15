@@ -571,8 +571,8 @@ async function main() {
             const lvp = flatten(lightViewProj);
             const lp = flatten(pointLight);
             for (const arr of [data, teapotData]) {
-                arr.set(lvp, 32);   // after mvp (16) + model (16)
-                arr.set(lp, 48);    // after lightViewProj
+                arr.set(lvp, 32);
+                arr.set(lp, 48);
             }
             shadowMapData.set(lvp, 16);
 

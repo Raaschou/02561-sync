@@ -458,7 +458,17 @@ async function main() {
 
     render();
     let movingModelMatrix = mat4()
+    function updateShadow() {
+        shadowMvp = mult(
+            mvp_perspective,
+            mult(view, mult(M_s, movingModelMatrix))
+        );
 
+        flatShadowMvp = flatten(shadowMvp);
+        shadowData.set(flatShadowMvp);
+
+        device.queue.writeBuffer(shadowUniformBuffer, 0, shadowData);
+    }
     function animate() {
         // If light is orbiting, update the position
         if (moving) {
@@ -469,16 +479,14 @@ async function main() {
 
             teapotData.set(flatten(movingModelMatrix), flatMvp.length);
 
-            shadowData.set(flatten(movingModelMatrix), flatMvp.length)
             device.queue.writeBuffer(teapotUniformBuffer, 0, teapotData);
-            device.queue.writeBuffer(shadowUniformBuffer, 0, shadowData);
-
+            updateShadow()
         }
 
         if (orbiting) {
             orbitAngle += 0.01
             // Recalculate the point light position
-            pointLight = vec3(0 + radius * Math.cos(orbitAngle), 2.0, -2 + radius * Math.sin(orbitAngle))
+            pointLight = vec3(radius * Math.cos(orbitAngle), 2.0, -2 + radius * Math.sin(orbitAngle));
             a = d + dot(n, pointLight) - epsilon;
             M_s = mat4(
                 a - pointLight[0] * n[0], -pointLight[0] * n[1], -pointLight[0] * n[2], -pointLight[0] * d,
@@ -487,16 +495,13 @@ async function main() {
                 -n[0], -n[1], -n[2], a - d
             )
             // mult with model to update shadow size
-            shadowMvp = mult(mvp_perspective, mult(view, mult(M_s, movingModelMatrix)))
             flatShadowMvp = flatten(shadowMvp)
             flatPointLight = flatten(pointLight)
-            shadowData.set((flatShadowMvp))
             teapotData.set(flatPointLight, 32);
             //shadowData.set(flatPointLight, 32);
 
-            device.queue.writeBuffer(shadowUniformBuffer, 0, shadowData)
             device.queue.writeBuffer(teapotUniformBuffer, 0, teapotData);
-
+            updateShadow()
 
         }
         // Check to stop multiple calls of requestAnimationFrame(animate) speeding up animation
