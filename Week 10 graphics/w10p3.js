@@ -62,10 +62,6 @@ async function main() {
         format: canvasFormat,
     });
 
-    let subdivideButton = document.getElementById("subdivide")
-    let coarsenButton = document.getElementById("coarsen")
-    let orbitButton = document.getElementById("orbit")
-
     let emissionSlider = document.getElementById("L_e")
     let ambianceSlider = document.getElementById("L_a")
     let diffusionSlider = document.getElementById("k_d")
@@ -220,6 +216,9 @@ async function main() {
     let view = lookAt(eye, lookat, up);
     let q_rot = new Quaternion()
     let q_inc = new Quaternion()
+    // save the pan coords:
+    let xPan = 0.0
+    let yPan = 0.0
     function updateUniforms(mvp, view) {
         const data = new Float32Array(44);
 
@@ -243,50 +242,98 @@ async function main() {
         device.queue.writeBuffer(uniformBuffer, 0, data);
     }
 
-
     canvas.addEventListener("mousedown", function (ev) {
-        console.log("mousedown fired", ev.button);
 
         let bbox = ev.target.getBoundingClientRect();
         // Map to [-1,1]
         let x0 = 2 * (ev.clientX - bbox.left) / canvas.width - 1;
         let y0 = 2 * (canvas.height - ev.clientY + bbox.top - 1) / canvas.height - 1;
+        let y0Client = ev.clientY
+        let x0Client = ev.clientX
 
         let u = getOrthoProj(x0, y0)
         if (ev.button == 0) {
-            console.log('left click');
+            this.addEventListener("mousemove", roll)
         } else if (ev.button == 2) {
             console.log('right click');
+            this.addEventListener("mousemove", dolly)
 
         } else if (ev.button == 1) {
+            ev.preventDefault(); // Prevent scrolling with middle mouse click
+            this.addEventListener("mousemove", pan)
+
             console.log('middle click');
 
         }
-        this.addEventListener("mousemove", roll)
+
         this.addEventListener("mouseup", release)
-
+        const sens = 0.005
         function roll(e) {
-
             let x = 2 * (e.clientX - bbox.left) / canvas.width - 1
             let y = 2 * (canvas.height - e.clientY + bbox.top - 1) / canvas.height - 1
-            let v = getOrthoProj(x, y)
 
+            let v = getOrthoProj(x, y)
 
             x0 = x
             y0 = y
-            //eye = mult(rotateX(thetaX), mult(rotateY(thetaY), initEye))
+
             q_inc = q_inc.make_rot_vec2vec(normalize(u), normalize(v))
             q_rot.multiply(q_inc)
-            view = lookAt(add(q_rot.apply(vec3(0, 0, eye[2])), lookat), lookat, q_rot.apply(up));
             u = v
+
+            view = lookAt(add(q_rot.apply(eye), lookat), lookat, q_rot.apply(up));
+
+            requestAnimationFrame(animate)
+
+        }
+        function dolly(e) {
+            // Only change y for dolly
+            let y = e.clientY
+            // Update z_eye before y0
+            eye[2] += sens * (y0Client - y)
+
+            y0Client = y
+
+            view = lookAt(add(q_rot.apply(eye), lookat), lookat, q_rot.apply(up));
+
+            requestAnimationFrame(animate)
+
+        }
+        function pan(e) {
+            // lookat is 0,0,0
+            let a = vec3(0, 0, 0)
+            let x = e.clientX
+            let y = e.clientY
+
+            xPan += x - x0Client
+            yPan += y0Client - y
+
+            x0Client = x
+            y0Client = y
+
+            // x where displacement should be specified?
+            let xVec = q_rot.apply(vec3(1, 0, 0));
+
+            // This is equal to
+            // c = a-(x_pan*q_rot*x*q_rot^-1+ y_pan*q_rot*y*q_rot^-1)
+            lookat = subtract(a, add(
+                scale(xPan * sens, xVec),
+                scale(yPan * sens, up)
+            ));
+            view = lookAt(add(q_rot.apply(eye), lookat), lookat, q_rot.apply(up));
+
 
             requestAnimationFrame(animate)
 
         }
         function release() {
-
-
-            this.removeEventListener("mousemove", roll)
+            if (ev.button == 0) {
+                this.removeEventListener("mousemove", roll)
+            } else if (ev.button == 2) {
+                this.removeEventListener("mousemove", dolly)
+            } else if (ev.button == 1) {
+                this.removeEventListener("mousemove", pan)
+            }
             this.removeEventListener("mouseup", release)
         }
     });
@@ -313,17 +360,7 @@ async function main() {
     });
 
 
-    // Button eventlisteners
-    subdivideButton.addEventListener("click", function () {
-        if (subdivs < 10) subdivs++;
-        //_indices()
-        render()
-    })
-    coarsenButton.addEventListener("click", function () {
-        if (subdivs > 0) subdivs--;
-        //calc_indices()
-        render()
-    })
+
 
 
     requestAnimationFrame(animate)

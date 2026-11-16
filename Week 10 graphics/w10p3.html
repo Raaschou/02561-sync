@@ -11,33 +11,49 @@
     <script id="wgsl" type="x-shader" src="w10p3.wgsl"></script>
     <script type="text/javascript" src="../common_js/OBJParser.js"></script>
     <script type="text/javascript" src="../common_js/quaternion.js"></script>
+    <style>
+        div {
+            display: flex;
+            flex-direction: row;
+            margin-right: 50px;
+        }
+    </style>
 </head>
 
 <body>
     <canvas width="512" height="512" oncontextmenu="return false;"></canvas>
+    <div>
+        <div style="flex-direction: column;">
+            <div>
+                <label for="L_e">Emitted radiance (L_e) 0.0</label>
+                <input type="range" , id="L_e" , min="0.0" , max="2.0" , step="0.05">2.0</input>
+            </div>
+            <div>
+                <label for="L_a">Ambient radiance (L_a) 0.0</label>
+                <input type="range" , id="L_a" , min="0.0" , max="1.0" , step="0.05">1.0</input>
+            </div>
+            <div>
+                <label for="k_d">Diffuse coefficient (k_d) 0.0</label>
+                <input type="range" , id="k_d" , min="0.0" , max="1.0" , step="0.05">1.0</input>
+            </div>
+            <div>
+                <label for="k_s">Specular coefficient (k_s) 0.0</label>
+                <input type="range" , id="k_s" , min="0.0" , max="1.0" , step="0.05">1.0</input>
+            </div>
+            <div>
+                <label for="s">Shininess (s) 0.0</label>
+                <input type="range" , id="s" , min="0.1" , max="100" , step="0.1">100</input>
+            </div>
+        </div>
+        <div style="flex-direction: column; ">
+            <p>
+                Left click is rotation <br>
+                Right click is dolly <br>
+                Middle click is panning
+            </p>
+        </div>
+    </div>
 
-    <div>
-        <label for="L_e">Emitted radiance (L_e) 0.0</label>
-        <input type="range" , id="L_e" , min="0.0" , max="2.0" , step="0.05">2.0</input>
-        <br>
-        <label for="L_a">Ambient radiance (L_a) 0.0</label>
-        <input type="range" , id="L_a" , min="0.0" , max="1.0" , step="0.05">1.0</input>
-        <br>
-        <label for="k_d">Diffuse coefficient (k_d) 0.0</label>
-        <input type="range" , id="k_d" , min="0.0" , max="1.0" , step="0.05">1.0</input>
-        <br>
-        <label for="k_s">Specular coefficient (k_s) 0.0</label>
-        <input type="range" , id="k_s" , min="0.0" , max="1.0" , step="0.05">1.0</input>
-        <br>
-        <label for="s">Shininess (s) 0.0</label>
-        <input type="range" , id="s" , min="0.1" , max="100" , step="0.1">100</input>
-    </div>
-    <br>
-    <div>
-        <button id="subdivide">Subdivide</button>
-        <button id="coarsen">Coarsen</button>
-        <button id="orbit">Orbit</button>
-    </div>
 </body>
 
 </html>
