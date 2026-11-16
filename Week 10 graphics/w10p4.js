@@ -96,7 +96,9 @@ async function main() {
 
     let thetaX = 0.0;
     let thetaY = 0.0;
-
+    let rolling = false;
+    let spinning = false;
+    let moved = false;
 
     const M_SQRT2 = Math.sqrt(2.0);
     const M_SQRT6 = Math.sqrt(6.0);
@@ -219,6 +221,8 @@ async function main() {
     // save the pan coords:
     let xPan = 0.0
     let yPan = 0.0
+
+    let rollTime = 0.0
     function updateUniforms(mvp, view) {
         const data = new Float32Array(44);
 
@@ -253,17 +257,13 @@ async function main() {
 
         let u = getOrthoProj(x0, y0)
         if (ev.button == 0) {
+            rolling = true;
             this.addEventListener("mousemove", roll)
         } else if (ev.button == 2) {
-            console.log('right click');
             this.addEventListener("mousemove", dolly)
-
         } else if (ev.button == 1) {
             ev.preventDefault(); // Prevent scrolling with middle mouse click
             this.addEventListener("mousemove", pan)
-
-            console.log('middle click');
-
         }
 
         this.addEventListener("mouseup", release)
@@ -280,6 +280,10 @@ async function main() {
             q_inc = q_inc.make_rot_vec2vec(normalize(u), normalize(v))
             q_rot.multiply(q_inc)
             u = v
+
+            rollTime = Date.now();
+
+            moved = true;
 
             view = lookAt(add(q_rot.apply(eye), lookat), lookat, q_rot.apply(up));
 
@@ -328,6 +332,12 @@ async function main() {
         }
         function release() {
             if (ev.button == 0) {
+                if (Date.now() - rollTime < 20) {
+                    spinning = true;
+                } else {
+                    spinning = false;
+                    q_inc.setIdentity();
+                }
                 this.removeEventListener("mousemove", roll)
             } else if (ev.button == 2) {
                 this.removeEventListener("mousemove", dolly)
@@ -338,12 +348,23 @@ async function main() {
         }
     });
     function animate() {
+        if (rolling || spinning) {
+            if (moved || spinning) {
+                q_rot.multiply(q_inc);
+                moved = false;
 
-        //const view = lookAt(eye, lookat, up);
+                view = lookAt(add(q_rot.apply(eye), lookat), lookat, q_rot.apply(up));
+            }
+        }
         const mvp = mult(P, view);
 
         updateUniforms(mvp, view)
         render()
+
+        // Keep animating the spinning, even when not interacting
+        if (rolling || spinning) {
+            requestAnimationFrame(animate);
+        }
     }
 
     const uniformBuffer = device.createBuffer({

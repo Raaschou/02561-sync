@@ -255,15 +255,10 @@ async function main() {
         if (ev.button == 0) {
             this.addEventListener("mousemove", roll)
         } else if (ev.button == 2) {
-            console.log('right click');
             this.addEventListener("mousemove", dolly)
-
         } else if (ev.button == 1) {
             ev.preventDefault(); // Prevent scrolling with middle mouse click
             this.addEventListener("mousemove", pan)
-
-            console.log('middle click');
-
         }
 
         this.addEventListener("mouseup", release)
