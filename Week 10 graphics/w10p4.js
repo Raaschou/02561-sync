@@ -277,8 +277,8 @@ async function main() {
             x0 = x
             y0 = y
 
-            q_inc = q_inc.make_rot_vec2vec(normalize(u), normalize(v))
-            q_rot.multiply(q_inc)
+            q_inc = q_inc.make_rot_vec2vec(normalize(v), normalize(u))
+
             u = v
 
             rollTime = Date.now();
