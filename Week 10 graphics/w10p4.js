@@ -299,8 +299,8 @@ async function main() {
             y0Client = y
 
             view = lookAt(add(q_rot.apply(eye), lookat), lookat, q_rot.apply(up));
+            requestAnimationFrame(animate);
 
-            requestAnimationFrame(animate)
 
         }
         function pan(e) {
@@ -325,9 +325,9 @@ async function main() {
                 scale(yPan * sens, up)
             ));
             view = lookAt(add(q_rot.apply(eye), lookat), lookat, q_rot.apply(up));
+            requestAnimationFrame(animate);
 
 
-            requestAnimationFrame(animate)
 
         }
         function release() {
@@ -384,7 +384,6 @@ async function main() {
 
 
 
-    requestAnimationFrame(animate)
 
     function render() {
         const encoder = device.createCommandEncoder();
@@ -418,7 +417,6 @@ async function main() {
         device.queue.submit([encoder.finish()]);
 
     }
-
     requestAnimationFrame(animate)
 }
 
