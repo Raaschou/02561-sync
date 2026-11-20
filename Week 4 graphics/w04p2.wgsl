@@ -11,13 +11,15 @@ struct Uniforms {
 var<uniform> uniforms: Uniforms;
 
 @vertex
-fn main_vs(@location(0) inPos: vec4f, @location(1) inColor: vec3f) -> VSOut {
+fn main_vs(@location(0) inPos: vec4f) -> VSOut {
     var vsOut: VSOut;
 
     let p = uniforms.mvp * inPos;
 
     vsOut.position = p;
-    vsOut.color = inColor;
+    // Note to self RTFM 
+    // Just calculate colour here, because for unit circle n_xyz = p_xyz 
+    vsOut.color = (0.5 * inPos.xyz) + 0.5;
     return vsOut;
 }
 

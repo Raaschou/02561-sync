@@ -14,14 +14,16 @@ const k_d: f32 = 1.0;
 const L_e: vec3f = vec3f(1.0, 1.0, 1.0);
 const I_e: vec3f = vec3f(0.0, 0.0, -1.0);
 @vertex
-fn main_vs(@location(0) inPos: vec4f, @location(1) inColor: vec3f) -> VSOut {
+fn main_vs(@location(0) inPos: vec4f) -> VSOut {
     var vsOut: VSOut;
     let p = uniforms.mvp * inPos;
 
     let wi = normalize(-I_e);
-    let normal = normalize(inColor);
+    // Note to self RTFM 
+    // Just calculate colour here, because for unit circle n_xyz = p_xyz 
+    let normal = (0.5 * inPos.xyz) + 0.5;
     let diffuse = max(dot(normal, wi), 0.0);
-    vsOut.color = inColor * k_d * L_e * diffuse;
+    vsOut.color = normal * k_d * L_e * diffuse;
     vsOut.position = p;
     return vsOut;
 }
