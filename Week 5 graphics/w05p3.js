@@ -81,7 +81,7 @@ async function main() {
     var indices = obj.indices;
     let colors = unpackVec3(obj.normals); // normals are named colors from week 4
 
-    
+
     let indexBuffer = device.createBuffer({
         size: indices.byteLength,
         usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
@@ -143,7 +143,13 @@ async function main() {
     const depthTexture = device.createTexture({
         size: { width: canvas.width, height: canvas.height },
         format: 'depth24plus',
-        sampleCount: 1,
+        sampleCount: 4,
+        usage: GPUTextureUsage.RENDER_ATTACHMENT,
+    });
+    const msaaTexture = device.createTexture({
+        size: { width: canvas.width, height: canvas.height },
+        format: context.getCurrentTexture().format,
+        sampleCount: 4,
         usage: GPUTextureUsage.RENDER_ATTACHMENT,
     });
 
@@ -168,6 +174,9 @@ async function main() {
             topology: 'triangle-list',
             frontFace: "ccw",
             cullMode: "back",
+        },
+        multisample: {
+            count: 4,
         },
     });
     let lookat = vec3(0.0, 0.0, 0.0)
@@ -254,7 +263,8 @@ async function main() {
 
         const pass = encoder.beginRenderPass({
             colorAttachments: [{
-                view: context.getCurrentTexture().createView(),
+                view: msaaTexture.createView(),
+                resolveTarget: context.getCurrentTexture().createView(),
                 loadOp: "clear",
                 clearValue: [0.3921, 0.5843, 0.9294, 1.0],
                 storeOp: "store",
