@@ -1,19 +1,4 @@
 window.onload = function () { main(); }
-// Function for converting obj float array to array of float array
-function unpackVec3(data) {
-    const result = [];
-
-    for (let i = 0; i < data.length; i += 4) {
-        result.push(vec3(
-            data[i],
-            data[i + 1],
-            data[i + 2]
-        ));
-    }
-
-    return result;
-}
-
 
 // Helper function for creating bindGroups
 function createBindGroup(device, pipeline, texture, uniformBuffer) {
@@ -82,21 +67,20 @@ function createPipeline(label, device, wgsl, canvasFormat, posLayout, texLayout,
             topology: 'triangle-list',
             frontFace: "ccw",
         },
+        multisample: {
+            count: 4,
+        },
     })
 }
 
-// modified unpackVec3 to tranlate by the vector 
-function tranlateVertices(vertices, vector) {
-    const result = []
-    for (let i = 0; i < vertices.length; i += 4) {
-        result.push(vec3(
 
-            vertices[i] + vector[0],
-            vertices[i + 1] + vector[1],
-            vertices[i + 2] + vector[2]
-        ));
+function translateVertices(vertices, vector) {
+    for (let i = 0; i < vertices.length; i += 4) {
+        vertices[i] += vector[0]
+        vertices[i + 1] += vector[1]
+        vertices[i + 2] += vector[2]
     }
-    return result
+    return vertices
 }
 
 
@@ -165,12 +149,12 @@ async function main() {
         vec2(0, 1),
     ]
     // Unpack teapot variables
-    const teapotPointsScaled = obj.vertices // scale by a quarter
-    const teapotPoints = tranlateVertices(teapotPointsScaled, translateVector) // unpack and translate
+
+    const teapotPoints = translateVertices(obj.vertices, translateVector) // unpack and translate
 
     const teapotIndices = obj.indices
 
-    const teapotNormals = unpackVec3(obj.normals)
+    const teapotNormals = obj.normals
 
 
     let planeIndicies = new Uint32Array([
@@ -217,9 +201,9 @@ async function main() {
 
     const teapotPointsBufferLayout = {
         label: "teapot buffer layout",
-        arrayStride: sizeof["vec3"],
+        arrayStride: sizeof["vec4"],
         attributes: [{
-            format: "float32x3",
+            format: "float32x4",
             offset: 0,
             shaderLocation: 0,
         }]
@@ -284,18 +268,25 @@ async function main() {
     device.queue.writeBuffer(teapotNormalBuffer, 0, flatten(teapotNormals))
 
     const teapotNormalBufferLayout = {
-        arrayStride: sizeof["vec3"],
-        attributes: [{ format: "float32x3", offset: 0, shaderLocation: 2 }]
+        arrayStride: sizeof["vec4"],
+        attributes: [{ format: "float32x4", offset: 0, shaderLocation: 2 }]
     }
 
     // index buffer
-    const indexBuffer = device.createBuffer({
+    const pindexBuffer = device.createBuffer({
         label: "index buffer",
-        size: flatten(indices).byteLength,
+        size: flatten(planeIndicies).byteLength,
         usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
     })
 
-    device.queue.writeBuffer(indexBuffer, 0, indices)
+    device.queue.writeBuffer(pindexBuffer, 0, planeIndicies)
+    const tindexBuffer = device.createBuffer({
+        label: "index buffer",
+        size: flatten(teapotIndices).byteLength,
+        usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
+    })
+
+    device.queue.writeBuffer(tindexBuffer, 0, teapotIndices)
 
 
     const myTexture = device.createTexture({
@@ -346,10 +337,16 @@ async function main() {
     const depthTexture = device.createTexture({
         size: { width: canvas.width, height: canvas.height },
         format: 'depth24plus-stencil8',
-        sampleCount: 1,
+        sampleCount: 4,
         usage: GPUTextureUsage.RENDER_ATTACHMENT,
     });
 
+    const msaaTexture = device.createTexture({
+        size: { width: canvas.width, height: canvas.height },
+        format: context.getCurrentTexture().format,
+        sampleCount: 4,
+        usage: GPUTextureUsage.RENDER_ATTACHMENT,
+    });
     // Render pipeline
     const pipeline = createPipeline("plane pipeline", device, wgsl, canvasFormat, planePosBufferLayout,
         textureBufferLayout, planeNormalBufferLayout, "always", "replace", false)
@@ -518,7 +515,8 @@ async function main() {
         const pass = encoder.beginRenderPass({
             label: "pass encoder",
             colorAttachments: [{
-                view: context.getCurrentTexture().createView(),
+                view: msaaTexture.createView(),
+                resolveTarget: context.getCurrentTexture().createView(),
                 loadOp: "clear",
                 clearValue: [0.3921, 0.5843, 0.9294, 1.0],
                 storeOp: "store",
@@ -537,27 +535,28 @@ async function main() {
         pass.setStencilReference(1)
 
         pass.setPipeline(pipeline);
+        //Draw plane
         pass.setVertexBuffer(0, planePosBuffer);
         pass.setVertexBuffer(1, textureBuffer);
         pass.setVertexBuffer(2, planeNormalBuffer);
+        pass.setIndexBuffer(pindexBuffer, 'uint32');
 
-        pass.setIndexBuffer(indexBuffer, 'uint32');
-
-        // Draw ground
         pass.setBindGroup(0, planeBindGroup);
-
-
         pass.drawIndexed(6, 1, 0, 0);
-        pass.setVertexBuffer(0, teapotPointsBuffer);
-        pass.setVertexBuffer(1, textureBuffer);
 
+        //Set teapot buffers
+        pass.setVertexBuffer(0, teapotPointsBuffer);
         pass.setVertexBuffer(2, teapotNormalBuffer);
+        pass.setIndexBuffer(tindexBuffer, 'uint32');
 
         // Then draw shadows on plane
         pass.setPipeline(shadowPipeline)
         pass.setBindGroup(0, shadowBindGroup);
         pass.drawIndexed(teapotIndices.length, 1, 0, 0)
-        // Lastly draw red quads
+
+        // Lastly teapot
+
+
         pass.setPipeline(teapotPipeline);
         pass.setBindGroup(0, teapotBindGroup);
         pass.drawIndexed(teapotIndices.length, 1, 0, 0)
