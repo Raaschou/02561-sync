@@ -27,10 +27,9 @@ const specularColor: vec3f = vec3f(1.0, 1.0, 1.0);
 fn main_vs(@location(0) inPos: vec4f) -> VSOut {
     var vsOut: VSOut;
     let p = uniforms.mvp * inPos;
-    // Note to self RTFM 
-    // Just calculate colour here, because for unit circle n_xyz = p_xyz 
-    let normal = (0.5 * inPos.xyz) + 0.5;
-    vsOut.color = normal;
+
+    let normal = inPos.xyz;
+    vsOut.color = inPos.xyz;
     vsOut.viewPos = (uniforms.view * inPos).xyz;
     vsOut.position = p;
     return vsOut;
@@ -42,8 +41,9 @@ fn main_fs(in: VSOut) -> @location(0) vec4f {
     let normal = in.color;
 
     let cos_theta = dot(normal, w_i);
+
     let w_r = normalize(2.0 * (dot(w_i, normal)) * normal - w_i);
-    // vec4(inColor, 1.0) to circumvent mismatching matrix
+
     let w_o = normalize(-(in.viewPos).xyz);
 
     // Phong

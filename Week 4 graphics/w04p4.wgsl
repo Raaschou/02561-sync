@@ -30,7 +30,7 @@ fn main_vs(@location(0) inPos: vec4f) -> VSOut {
     let w_i = normalize(-I_e);
     // Note to self RTFM 
     // Just calculate colour here, because for unit circle n_xyz = p_xyz 
-    let normal = (0.5 * inPos.xyz) + 0.5;
+    let normal = normalize(inPos.xyz);
     let cos_theta = dot(normal, w_i);
     let w_r = normalize(2.0 * (dot(w_i, normal)) * normal - w_i);
     let w_o = normalize(-(uniforms.view * inPos).xyz);

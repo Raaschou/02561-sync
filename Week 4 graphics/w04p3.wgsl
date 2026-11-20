@@ -19,9 +19,8 @@ fn main_vs(@location(0) inPos: vec4f) -> VSOut {
     let p = uniforms.mvp * inPos;
 
     let wi = normalize(-I_e);
-    // Note to self RTFM 
-    // Just calculate colour here, because for unit circle n_xyz = p_xyz 
-    let normal = (0.5 * inPos.xyz) + 0.5;
+    // Back to true normals... 
+    let normal = inPos.xyz;
     let diffuse = max(dot(normal, wi), 0.0);
     vsOut.color = normal * k_d * L_e * diffuse;
     vsOut.position = p;
