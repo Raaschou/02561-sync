@@ -5,7 +5,7 @@ struct VSOut {
 }
 
 struct Uniforms {
-    mvp: array<mat4x4f, 1>,
+    mvp: mat4x4f,
     view: mat4x4f,
     L_e: vec3f,
     _pad0: f32,
@@ -24,13 +24,9 @@ const I_e: vec3f = vec3f(0.0, 0.0, -1.0);
 const diffuseColor: vec3f = vec3f(1.0, 0.0, 1.0);
 const specularColor: vec3f = vec3f(1.0, 1.0, 1.0);
 @vertex
-fn main_vs(
-    @builtin(instance_index) instanceIdx: u32,
-    @location(0) inPos: vec4f,
-    @location(1) inColor: vec3f,
-) -> VSOut {
+fn main_vs(@location(0) inPos: vec4f, @location(1) inColor: vec3f) -> VSOut {
     var vsOut: VSOut;
-    let p = uniforms.mvp[instanceIdx] * inPos;
+    let p = uniforms.mvp * inPos;
     vsOut.color = inColor;
     vsOut.viewPos = (uniforms.view * inPos).xyz;
     vsOut.position = p;
