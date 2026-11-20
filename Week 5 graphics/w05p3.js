@@ -80,34 +80,8 @@ async function main() {
     var positions = unpackVec3(obj.vertices);
     var indices = obj.indices;
     let colors = unpackVec3(obj.normals); // normals are named colors from week 4
-    console.log(positions)
-    console.log(indices)
-    console.log(colors)
-    /* function calc_indices() {
-        positions = unpackVec3(obj.vertices);
-        indices = obj.indices;
-        colors = unpackVec3(obj.normals);
 
-        for (let i = 0; i < subdivs; ++i) {
-            indices = subdivide_sphere(positions, indices, colors);
-        }
-        console.log(indices.length)
-        if (indexBuffer) {
-            indexBuffer.destroy();
-        }
-
-        indexBuffer = device.createBuffer({
-            size: indices.byteLength,
-            usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
-        });
-        colorBuffer = device.createBuffer({
-            size: flatten(colors).byteLength,
-            usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-        });
-        device.queue.writeBuffer(indexBuffer, 0, indices);
-        device.queue.writeBuffer(colorBuffer, 0, flatten(colors))
-        device.queue.writeBuffer(positionBuffer, 0, flatten(positions));
-    } */
+    
     let indexBuffer = device.createBuffer({
         size: indices.byteLength,
         usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
