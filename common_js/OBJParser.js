@@ -100,7 +100,7 @@ OBJDoc.prototype.parse = async function (fileString, scale, reverse) {
         currentObject.addFace(face);
         continue; // Go to the next line
       case 'vt': // Read texture coordinates
-        var texCoord = this.parseVertex(sp, scale); // Reuse vertex parser
+        var texCoord = this.parseTexCoord(sp, scale);
         this.texCoords.push(texCoord);
         continue;
     }
@@ -142,9 +142,9 @@ OBJDoc.prototype.parseUsemtl = function (sp) {
 }
 
 OBJDoc.prototype.parseTexCoord = function (sp, scale) {
-  var x = sp.getFloat() * scale;
-  var y = sp.getFloat() * scale;
-  return (new TexCoord(x, y));
+  var u = sp.getFloat() * scale;
+  var v = sp.getFloat() * scale;
+  return (new TexCoord(u, v));
 }
 
 OBJDoc.prototype.parseFace = function (sp, materialName, vertices, reverse) {
@@ -291,7 +291,7 @@ OBJDoc.prototype.getDrawingInfo = function () {
   var normals = new Float32Array(numVertices * 4);
   var colors = new Float32Array(numVertices * 4);
   var indices = new Uint32Array(numIndices);
-  var texCoords = new Float32Array(numVertices * 4);
+  var texCoords = new Float32Array(numVertices * 3); // Only has u,v,w coords
 
   // Set vertex, normal and color
   var index_indices = 0;
@@ -318,8 +318,9 @@ OBJDoc.prototype.getDrawingInfo = function () {
         colors[vIdx * 4 + 3] = color.a;
         // Copy texCoords
         var texCoord = this.texCoords[vIdx];
-        texCoords[vIdx] = texCoord.x;
-        texCoords[vIdx + 1] = texCoord.y;
+        texCoords[vIdx * 3 + 0] = texCoord.u;
+        texCoords[vIdx * 3 + 1] = texCoord.v;
+        texCoords[vIdx * 3 + 2] = 0.0 // default w for texCoords
         // Copy normal
         var nIdx = face.nIndices[k];
         if (nIdx >= 0) {
@@ -399,9 +400,9 @@ var Color = function (r, g, b, a) {
 //------------------------------------------------------------------------------
 // TexCoord Object
 //------------------------------------------------------------------------------
-var TexCoord = function (x, y) {
-  this.x = x;
-  this.y = y;
+var TexCoord = function (u, v) {
+  this.u = u;
+  this.v = v;
 }
 //------------------------------------------------------------------------------
 // OBJObject Object
