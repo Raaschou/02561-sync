@@ -12,15 +12,13 @@
 // OBJParser
 //------------------------------------------------------------------------------
 
-async function readOBJFile(fileName, scale, reverse)
-{
+async function readOBJFile(fileName, scale, reverse) {
   const response = await fetch(fileName);
-  if(response.ok)
-  {
+  if (response.ok) {
     var objDoc = new OBJDoc(fileName); // Create an OBJDoc object
     let fileText = await response.text();
     let result = await objDoc.parse(fileText, scale, reverse);
-    if(!result) {
+    if (!result) {
       console.log("OBJ file parsing error.");
       return null;
     }
@@ -38,6 +36,7 @@ var OBJDoc = function (fileName) {
   this.objects = new Array(0);   // Initialize the property for Object
   this.vertices = new Array(0);  // Initialize the property for Vertex
   this.normals = new Array(0);   // Initialize the property for Normal
+  this.texCoords = new Array(0);
 }
 
 // Parsing the OBJ file
@@ -66,7 +65,7 @@ OBJDoc.prototype.parse = async function (fileString, scale, reverse) {
         var mtl = new MTLDoc();   // Create MTL instance
         this.mtls.push(mtl);
         const response = await fetch(path);
-        if(response.ok) {
+        if (response.ok) {
           onReadMTLFile(await response.text(), mtl);
         }
         else {
@@ -100,6 +99,10 @@ OBJDoc.prototype.parse = async function (fileString, scale, reverse) {
         var face = this.parseFace(sp, currentMaterialName, this.vertices, reverse);
         currentObject.addFace(face);
         continue; // Go to the next line
+      case 'vt': // Read texture coordinates
+        var texCoord = this.parseVertex(sp, scale); // Reuse vertex parser
+        this.texCoords.push(texCoord);
+        continue;
     }
   }
 
@@ -136,6 +139,12 @@ OBJDoc.prototype.parseNormal = function (sp) {
 
 OBJDoc.prototype.parseUsemtl = function (sp) {
   return sp.getWord();
+}
+
+OBJDoc.prototype.parseTexCoord = function (sp, scale) {
+  var x = sp.getFloat() * scale;
+  var y = sp.getFloat() * scale;
+  return (new TexCoord(x, y));
 }
 
 OBJDoc.prototype.parseFace = function (sp, materialName, vertices, reverse) {
@@ -282,6 +291,7 @@ OBJDoc.prototype.getDrawingInfo = function () {
   var normals = new Float32Array(numVertices * 4);
   var colors = new Float32Array(numVertices * 4);
   var indices = new Uint32Array(numIndices);
+  var texCoords = new Float32Array(numVertices * 4);
 
   // Set vertex, normal and color
   var index_indices = 0;
@@ -306,6 +316,10 @@ OBJDoc.prototype.getDrawingInfo = function () {
         colors[vIdx * 4 + 1] = color.g;
         colors[vIdx * 4 + 2] = color.b;
         colors[vIdx * 4 + 3] = color.a;
+        // Copy texCoords
+        var texCoord = this.texCoords[vIdx];
+        texCoords[vIdx] = texCoord.x;
+        texCoords[vIdx + 1] = texCoord.y;
         // Copy normal
         var nIdx = face.nIndices[k];
         if (nIdx >= 0) {
@@ -325,7 +339,7 @@ OBJDoc.prototype.getDrawingInfo = function () {
     }
   }
 
-  return new DrawingInfo(vertices, normals, colors, indices);
+  return new DrawingInfo(vertices, normals, colors, indices, texCoords);
 }
 
 //------------------------------------------------------------------------------
@@ -382,7 +396,13 @@ var Color = function (r, g, b, a) {
   this.b = b;
   this.a = a;
 }
-
+//------------------------------------------------------------------------------
+// TexCoord Object
+//------------------------------------------------------------------------------
+var TexCoord = function (x, y) {
+  this.x = x;
+  this.y = y;
+}
 //------------------------------------------------------------------------------
 // OBJObject Object
 //------------------------------------------------------------------------------
@@ -410,11 +430,12 @@ var Face = function (materialName) {
 //------------------------------------------------------------------------------
 // DrawInfo Object
 //------------------------------------------------------------------------------
-var DrawingInfo = function (vertices, normals, colors, indices) {
+var DrawingInfo = function (vertices, normals, colors, indices, texCoords) {
   this.vertices = vertices;
   this.normals = normals;
   this.colors = colors;
   this.indices = indices;
+  this.texCoords = texCoords;
 }
 
 //------------------------------------------------------------------------------
