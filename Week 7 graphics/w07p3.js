@@ -65,12 +65,6 @@ async function main() {
         1, 3, 2,
         0, 2, 3
     ]);
-    let colors = [
-        vec3(1.0, 1.0, 0.0),
-        vec3(1.0, 0.0, 1.0),
-        vec3(0.0, 1.0, 1.0),
-        vec3(1.0, 1.0, 1.0),
-    ];
 
     let quadVertices = [
         vec3(-1.0, -1.0, 0.999),
@@ -95,16 +89,9 @@ async function main() {
             1, 3, 2,
             0, 2, 3
         ]);
-        colors = [
-
-            vec3(1.0, 1.0, 0.0),
-            vec3(1.0, 0.0, 1.0),
-            vec3(0.0, 1.0, 1.0),
-            vec3(1.0, 1.0, 1.0),
-        ];
 
         for (let i = 0; i < subdivs; ++i) {
-            indices = subdivide_sphere(positions, indices, colors);
+            indices = subdivide_sphere(positions, indices);
         }
 
 
@@ -123,13 +110,9 @@ async function main() {
             size: indices.byteLength,
             usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
         });
-        colorBuffer = device.createBuffer({
-            size: flatten(colors).byteLength,
-            usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-        });
 
         device.queue.writeBuffer(indexBuffer, 0, indices);
-        device.queue.writeBuffer(colorBuffer, 0, flatten(colors))
+
         device.queue.writeBuffer(positionBuffer, 0, flatten(positions));
     }
 
@@ -168,21 +151,12 @@ async function main() {
 
 
 
-    let colorBuffer = device.createBuffer({
-        size: flatten(colors).byteLength,
-        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-    });
-
-
     calc_indices()
 
 
     device.queue.writeBuffer(indexBuffer, 0, indices);
 
     device.queue.writeBuffer(positionBuffer, 0, flatten(positions));
-
-
-    device.queue.writeBuffer(colorBuffer, 0, flatten(colors))
 
 
 
@@ -196,14 +170,6 @@ async function main() {
     };
 
 
-    const colorBufferLayout = {
-        arrayStride: sizeof['vec3'],
-        attributes: [{
-            format: 'float32x3',
-            offset: 0,
-            shaderLocation: 1,
-        }]
-    }
 
     // Wgsl import
     const wgslfile = document.getElementById('wgsl').src;
@@ -228,7 +194,7 @@ async function main() {
             label: "vs in pipeline",
             module: wgsl,
             entryPoint: 'main_vs',
-            buffers: [positionsBufferLayout, colorBufferLayout],
+            buffers: [positionsBufferLayout],
         },
         fragment: {
             label: "fs in pipeline",
@@ -385,7 +351,6 @@ async function main() {
 
         pass.setPipeline(pipeline);
         pass.setVertexBuffer(0, positionBuffer);
-        pass.setVertexBuffer(1, colorBuffer);
         pass.setIndexBuffer(indexBuffer, 'uint32');
 
         pass.setBindGroup(0, quadBindGroup);
