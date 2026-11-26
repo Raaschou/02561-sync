@@ -442,11 +442,11 @@ async function main() {
         -pointLight[1] * n[0], a - pointLight[1] * n[1], -pointLight[1] * n[2], -pointLight[1] * d,
         -pointLight[2] * n[0], -pointLight[2] * n[1], a - pointLight[2] * n[2], -pointLight[2] * d,
         -n[0], -n[1], -n[2], a - d
-
     )
+
     const lightTarget = vec3(0.0, -1.0, -3.0);
     let lightView = lookAt(pointLight, lightTarget, up);
-    let lightProjection = perspective(110.0, 1, 0.1, 10.0)
+    let lightProjection = perspective(90.0, 1, 0.1, 10.0);
     const view = lookAt(eye, lookat, up)
     const mvp = mult(mvp_perspective, view)
     const flatMvp = flatten(mvp);
